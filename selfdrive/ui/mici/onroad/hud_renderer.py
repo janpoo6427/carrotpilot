@@ -370,11 +370,11 @@ class HudRenderer(Widget):
     cur_text = str(cur_speed_int)
 
     cur_font = 80
-    cur_size = measure_text_cached(self._font_display, cur_text, cur_font)
+    #cur_size = measure_text_cached(self._font_display, cur_text, cur_font)
     cur_x = panel_x + 18
 
     # slightly up (was panel_h*0.55 ...). Move up a bit.
-    cur_y = int(panel_y + panel_h * 0.50 - cur_size.y * 0.5) - 2
+    cur_y = panel_y + 50
 
     rl.draw_text_ex(
       self._font_display,
@@ -404,10 +404,10 @@ class HudRenderer(Widget):
         set_text = str(123)
         set_color = rl.Color(255, 165, 0, 230)        
 
-      set_font = 64
+      set_font = 32
       set_size = measure_text_cached(self._font_display, set_text, set_font)
-      set_x = 100
-      set_y = 50
+      set_x = panel_x + 100
+      set_y = panel_y + 50
       rl.draw_text_ex(
         self._font_display,
         set_text,
