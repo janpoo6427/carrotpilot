@@ -425,8 +425,8 @@ class HudRenderer(Widget):
       mode_font = 35
       mode_size = measure_text_cached(self._font_semi_bold, mode_text, mode_font)
 
-      mode_x = panel_x + 18
-      mode_y = int(panel_y + panel_h * 0.05 - mode_size.y * 0.5)
+      mode_x = panel_x + 35
+      mode_y = int(panel_y + panel_h * 0.05 - mode_size.y * 0.5 - 15)
 
       rl.draw_text_ex(
         self._font_semi_bold,
