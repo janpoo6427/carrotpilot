@@ -159,7 +159,7 @@ class HudRenderer(Widget):
   def __init__(self):
     super().__init__()
     """Initialize the HUD renderer."""
-    self._debug_speed_panel = True
+    self._debug_speed_panel = False
     self.is_cruise_set: bool = False
     self.is_cruise_available: bool = True
     self.set_speed: float = SET_SPEED_NA
