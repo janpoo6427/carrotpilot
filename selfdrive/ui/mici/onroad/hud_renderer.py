@@ -432,7 +432,7 @@ class HudRenderer(Widget):
 
     # Fill (dark) + border (green)
     rl.draw_rectangle_rounded(rl.Rectangle(box_x, box_y, box_w, box_h), 0.2, 8, rl.Color(0, 0, 0, 120))
-    rl.draw_rectangle_rounded_lines(rl.Rectangle(box_x, box_y, box_w, box_h), 0.2, 8, 3, rl.Color(0, 255, 0, 230))
+    rl.draw_rectangle_rounded_lines_ex(rl.Rectangle(box_x, box_y, box_w, box_h), 0.2, 8, 3, rl.Color(0, 255, 0, 230))
 
     gear_font = 44
     gear_size = measure_text_cached(self._font_display, gear, gear_font)
