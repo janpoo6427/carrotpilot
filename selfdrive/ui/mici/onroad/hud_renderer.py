@@ -364,9 +364,6 @@ class HudRenderer(Widget):
     # ----- current speed (big, left) -----
     if self._debug_speed_panel:
       cur_speed_int = 123
-      ov.active = True
-      ov.speed_kph = 120
-      ov.speed_color_mode = 2
     else:
       cur_speed_int = int(round(self.speed))
 
@@ -390,7 +387,7 @@ class HudRenderer(Widget):
 
     # ----- set speed (center, smaller) -----
     show_set = self._engaged and self.is_cruise_set
-    if show_set:
+    if show_set or self._debug_speed_panel:
       set_speed = ov.speed_kph if ov.active else self.set_speed
       if not ui_state.is_metric:
         set_speed *= KM_TO_MILE
@@ -402,6 +399,10 @@ class HudRenderer(Widget):
         set_color = rl.Color(255, 165, 0, 230)
       else:
         set_color = rl.Color(0, 255, 0, 230)   # your sample is green
+
+      if self._debug_speed_panel:
+        set_text = str(123)
+        set_color = rl.Color(255, 165, 0, 230)        
 
       set_font = 64
       set_size = measure_text_cached(self._font_display, set_text, set_font)
