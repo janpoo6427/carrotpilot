@@ -60,7 +60,7 @@ class SetSpeedOverride:
       desired_speed = None
       desired_source = ""
 
-    if desired_speed is not None and desired_speed > 0.0 and desired_speed < set_speed_kph:
+    if desired_speed is not None and 0 < desired_speed < 200 and desired_speed < set_speed_kph:
       label = desired_source.strip() or "apply"
       label = label[:8]  # 너무 길면 UI 깨짐 방지 (원하면 길이 조절)
       return SetSpeedOverrideState(
