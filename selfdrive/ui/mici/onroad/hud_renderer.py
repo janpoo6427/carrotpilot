@@ -442,7 +442,7 @@ class HudRenderer(Widget):
         )
         set_size = measure_text_cached(self._font_display, set_label_text, set_font)
         set_x = int(panel_x + panel_w * 0.90 - set_size.x * 0.5)
-        set_y = int(panel_y + panel_h * 0.25 - set_size.y * 0.5)
+        set_y = int(panel_y + panel_h * 0.10 - set_size.y * 0.5)
         rl.draw_text_ex(
           self._font_display,
           set_label_text,
