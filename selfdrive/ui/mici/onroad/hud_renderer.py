@@ -439,11 +439,14 @@ class HudRenderer(Widget):
   
     # ----- set speed (center, smaller) -----
     show_set = self._engaged and self.is_cruise_set
-    if show_set or self._debug_speed_panel:
-      set_speed = self.set_speed
-      if not ui_state.is_metric:
-        set_speed *= KM_TO_MILE
-      set_text = str(int(round(set_speed)))
+    if True: #show_set or self._debug_speed_panel:
+      if show_set:
+        set_speed = self.set_speed
+        if not ui_state.is_metric:
+          set_speed *= KM_TO_MILE
+        set_text = str(int(round(set_speed)))
+      else:
+        set_text = "--"
 
       set_color = rl.Color(0, 255, 0, 230)
 
