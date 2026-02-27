@@ -158,6 +158,7 @@ class HudRenderer(Widget):
   def __init__(self):
     super().__init__()
     """Initialize the HUD renderer."""
+    self._debug_speed_panel = True
     self.is_cruise_set: bool = False
     self.is_cruise_available: bool = True
     self.set_speed: float = SET_SPEED_NA
@@ -361,13 +362,23 @@ class HudRenderer(Widget):
       rl.draw_circle(dot_x, dot_y, 10, tl)
 
     # ----- current speed (big, left) -----
-    cur_speed_int = int(round(self.speed))
+    if self._debug_speed_panel:
+      cur_speed_int = 123
+      ov.active = True
+      ov.speed_kph = 120
+      ov.speed_color_mode = 2
+    else:
+      cur_speed_int = int(round(self.speed))
+
     cur_text = str(cur_speed_int)
 
-    cur_font = 120
+    cur_font = 80
     cur_size = measure_text_cached(self._font_display, cur_text, cur_font)
     cur_x = panel_x + 18
-    cur_y = int(panel_y + panel_h * 0.55 - cur_size.y * 0.5)
+
+    # slightly up (was panel_h*0.55 ...). Move up a bit.
+    cur_y = int(panel_y + panel_h * 0.50 - cur_size.y * 0.5) - 2
+
     rl.draw_text_ex(
       self._font_display,
       cur_text,
@@ -394,8 +405,8 @@ class HudRenderer(Widget):
 
       set_font = 64
       set_size = measure_text_cached(self._font_display, set_text, set_font)
-      set_x = int(panel_x + panel_w * 0.52 - set_size.x * 0.5)
-      set_y = int(panel_y + panel_h * 0.42 - set_size.y * 0.5)
+      set_x = 100
+      set_y = 50
       rl.draw_text_ex(
         self._font_display,
         set_text,
@@ -407,8 +418,8 @@ class HudRenderer(Widget):
 
     # ----- cruise gap (small circle + number, bottom-mid-right) -----
     gap = self._get_cruise_gap()
-    gap_center_x = int(panel_x + panel_w * 0.72)
-    gap_center_y = int(panel_y + panel_h * 0.72)
+    gap_center_x = 150
+    gap_center_y = 20
     rl.draw_circle_lines(gap_center_x, gap_center_y, 16, rl.WHITE)
 
     gap_text = str(gap)
