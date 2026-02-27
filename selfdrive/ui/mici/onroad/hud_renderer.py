@@ -373,8 +373,7 @@ class HudRenderer(Widget):
     cur_size = measure_text_cached(self._font_display, cur_text, cur_font)
     cur_x = panel_x + 18
 
-    # slightly up (was panel_h*0.55 ...). Move up a bit.
-    cur_y = int(panel_y + panel_h * 0.50 - cur_size.y * 0.5) - 2
+    cur_y = int(panel_y + panel_h * 0.48 - cur_size.y * 0.5) - 2
 
     rl.draw_text_ex(
       self._font_display,
@@ -419,8 +418,8 @@ class HudRenderer(Widget):
 
     # ----- cruise gap (small circle + number, bottom-mid-right) -----
     gap = self._get_cruise_gap()
-    gap_center_x = 150
-    gap_center_y = 20
+    gap_center_x = int(panel_x + panel_w * 0.72)
+    gap_center_y = int(panel_y + panel_h * 0.72)
     rl.draw_circle_lines(gap_center_x, gap_center_y, 16, rl.WHITE)
 
     gap_text = str(gap)
@@ -439,8 +438,8 @@ class HudRenderer(Widget):
     gear = self._get_gear_text()
     box_w = 44
     box_h = 54
-    box_x = int(panel_x + panel_w - box_w - 14)
-    box_y = int(panel_y + panel_h * 0.33)
+    box_x = int(panel_x + panel_w - box_w - 14 + 50)
+    box_y = int(panel_y + panel_h * 0.40)
 
     # Fill (dark) + border (green)
     rl.draw_rectangle_rounded(rl.Rectangle(box_x, box_y, box_w, box_h), 0.2, 8, rl.Color(0, 0, 0, 120))
