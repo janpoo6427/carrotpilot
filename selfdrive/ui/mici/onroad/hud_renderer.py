@@ -387,21 +387,15 @@ class HudRenderer(Widget):
     # ----- set speed (center, smaller) -----
     show_set = self._engaged and self.is_cruise_set
     if show_set or self._debug_speed_panel:
-      set_speed = ov.speed_kph if ov.active else self.set_speed
+      set_speed = self.set_speed
       if not ui_state.is_metric:
         set_speed *= KM_TO_MILE
       set_text = str(int(round(set_speed)))
 
-      if ov.speed_color_mode == 1:      # eco
-        set_color = rl.Color(0, 255, 0, 230)
-      elif ov.speed_color_mode == 2:    # apply
-        set_color = rl.Color(255, 165, 0, 230)
-      else:
-        set_color = rl.Color(0, 255, 0, 230)   # your sample is green
+      set_color = rl.Color(0, 255, 0, 230)
 
       if self._debug_speed_panel:
         set_text = str(123)
-        set_color = rl.Color(255, 165, 0, 230)        
 
       set_font = 40
       set_size = measure_text_cached(self._font_display, set_text, set_font)
@@ -415,6 +409,48 @@ class HudRenderer(Widget):
         0,
         set_color,
       )
+      if ov.active:
+        set_speed = ov.speed_kph
+        if not ui_state.is_metric:
+          set_speed *= KM_TO_MILE
+        set_text = str(int(round(set_speed)))
+        set_label_text = ov.label
+
+        if ov.speed_color_mode == 1:      # eco
+          set_color = rl.Color(0, 255, 0, 230)
+        elif ov.speed_color_mode == 2:    # apply
+          set_color = rl.Color(255, 165, 0, 230)
+        else:
+          set_color = rl.Color(0, 255, 0, 230)   # your sample is green
+
+        if self._debug_speed_panel:
+          set_text = str(111)
+          set_color = rl.Color(255, 165, 0, 230)
+          set_label_text = "vturn"
+
+        set_font = 40
+        set_size = measure_text_cached(self._font_display, set_text, set_font)
+        set_x = int(panel_x + panel_w * 0.90 - set_size.x * 0.5)
+        set_y = int(panel_y + panel_h * 0.25 - set_size.y * 0.5)
+        rl.draw_text_ex(
+          self._font_display,
+          set_text,
+          rl.Vector2(set_x, set_y),
+          set_font,
+          0,
+          set_color,
+        )
+        set_size = measure_text_cached(self._font_display, set_label_text, set_font)
+        set_x = int(panel_x + panel_w * 0.90 - set_size.x * 0.5)
+        set_y = int(panel_y + panel_h * 0.25 - set_size.y * 0.5)
+        rl.draw_text_ex(
+          self._font_display,
+          set_label_text,
+          rl.Vector2(set_x, set_y),
+          set_font,
+          0,
+          set_color,
+        )
 
     # ----- cruise gap (small circle + number, bottom-mid-right) -----
     gap = self._get_cruise_gap()
