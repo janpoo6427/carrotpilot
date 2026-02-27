@@ -159,7 +159,7 @@ class HudRenderer(Widget):
   def __init__(self):
     super().__init__()
     """Initialize the HUD renderer."""
-    self._debug_speed_panel = False
+    self._debug_speed_panel = True
     self.is_cruise_set: bool = False
     self.is_cruise_available: bool = True
     self.set_speed: float = SET_SPEED_NA
@@ -547,6 +547,38 @@ class HudRenderer(Widget):
       gear_font,
       0,
       rl.WHITE,
+    )
+
+    if self._debug_speed_panel:
+      active_lane_line = True
+    else:
+      active_lane_line = bool(ui_state.sm['controlsState'].activeLaneLine)      
+
+    line1 = "lane"
+    line2 = "mode" if active_lane_line else "less"
+
+    lane_font = 26  # 원하면 22~30 사이로 조절
+    lane_color = rl.Color(255, 255, 255, 220)  # 흰색
+
+    lane_x = box_x + box_w + 10
+    lane_y1 = box_y + 6
+    lane_y2 = box_y + 6 + lane_font + 2
+
+    # 오른쪽 정렬(gear box 옆에 딱 붙게)
+    s1 = measure_text_cached(self._font_semi_bold, line1, lane_font)
+    s2 = measure_text_cached(self._font_semi_bold, line2, lane_font)
+
+    rl.draw_text_ex(
+      self._font_semi_bold,
+      line1,
+      rl.Vector2(lane_x - s1.x, lane_y1),
+      lane_font, 0, lane_color
+    )
+    rl.draw_text_ex(
+      self._font_semi_bold,
+      line2,
+      rl.Vector2(lane_x - s2.x, lane_y2),
+      lane_font, 0, lane_color
     )
 
   def _draw_driving_mode_text(self, rect: rl.Rectangle) -> None:
