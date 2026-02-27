@@ -11,6 +11,7 @@ from openpilot.system.ui.widgets import Widget
 from openpilot.common.filter_simple import FirstOrderFilter
 from cereal import log
 from openpilot.common.params import Params
+from datetime import datetime
 
 EventName = log.OnroadEvent.EventName
 
@@ -290,28 +291,22 @@ class HudRenderer(Widget):
       rl.draw_texture(self._txt_exclamation_point, int(exclamation_pos_x), int(exclamation_pos_y), rl.WHITE)
 
 
-    active_lane_line = bool(ui_state.sm['controlsState'].activeLaneLine)
+    # ----- current time (right of wheel) -----
+    now_text = datetime.now().strftime("%H:%M")  # 24h format
 
-    if active_lane_line:
-      lane_text = "lane"
-      lane_color = rl.Color(0, 255, 0, 230)
-    else:
-      lane_text = "laneless"
-      lane_color = rl.Color(255, 165, 0, 230)
+    time_font = 35
+    time_size = measure_text_cached(self._font_semi_bold, now_text, time_font)
 
-    lane_font = 35
-    lane_size = measure_text_cached(self._font_semi_bold, lane_text, lane_font)
-
-    lane_x = pos_x + wheel_txt.width / 2 + 12
-    lane_y = pos_y - lane_size.y / 2
+    time_x = pos_x + wheel_txt.width / 2 + 12
+    time_y = pos_y - time_size.y / 2
 
     rl.draw_text_ex(
       self._font_semi_bold,
-      lane_text,
-      rl.Vector2(lane_x, lane_y),
-      lane_font,
+      now_text,
+      rl.Vector2(time_x, time_y),
+      time_font,
       0,
-      lane_color,
+      rl.Color(255, 255, 255, 230),  # white
     )
 
   def _get_gear_text(self) -> str:
@@ -420,6 +415,9 @@ class HudRenderer(Widget):
     )
     
     mode_text, mode_color = self._get_driving_mode_text_and_color()
+    if self._debug_speed_panel:
+      mode_text = "safe"
+      mode_color = rl.Color(0, 255, 0, 230)
 
     if mode_text:
       mode_font = 35
