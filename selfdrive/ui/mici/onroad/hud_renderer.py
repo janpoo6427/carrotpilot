@@ -289,48 +289,91 @@ class HudRenderer(Widget):
       exclamation_pos_y = pos_y - self._txt_exclamation_point.height / 2
       rl.draw_texture(self._txt_exclamation_point, int(exclamation_pos_x), int(exclamation_pos_y), rl.WHITE)
 
+
+    active_lane_line = bool(ui_state.sm['controlsState'].activeLaneLine)
+
+    if active_lane_line:
+      lane_text = "lane"
+      lane_color = rl.Color(0, 255, 0, 230)
+    else:
+      lane_text = "laneless"
+      lane_color = rl.Color(255, 165, 0, 230)
+
+    lane_font = 35
+    lane_size = measure_text_cached(self._font_semi_bold, lane_text, lane_font)
+
+    lane_x = pos_x + wheel_txt.width / 2 + 12
+    lane_y = pos_y - lane_size.y / 2
+
+    rl.draw_text_ex(
+      self._font_semi_bold,
+      lane_text,
+      rl.Vector2(lane_x, lane_y),
+      lane_font,
+      0,
+      lane_color,
+    )
+
   def _get_gear_text(self) -> str:
-    # carState.gearShifter is an enum. We keep this robust across forks.
+    sm = ui_state.sm
+
     try:
-      gs = ui_state.sm['carState'].gearShifter
-      # capnp enums often provide .raw or string conversion depending on binding
-      s = str(gs)
-      # common forms: "drive", "park", "reverse", "neutral", or "GearShifter.drive"
-      s = s.split('.')[-1].lower()
-      if 'drive' in s:
-        return 'D'
-      if 'park' in s:
-        return 'P'
-      if 'reverse' in s:
-        return 'R'
-      if 'neutral' in s:
-        return 'N'
+      car_state = sm["carState"]
+      gear = car_state.gearShifter
     except Exception:
-      pass
-    return 'D'
+      return "R"
+
+    # cereal enum → 문자열 변환
+    try:
+      gear_name = str(gear).split('.')[-1]
+    except Exception:
+      gear_name = str(gear)
+
+    # DRIVE 처리
+    if "DRIVE" in gear_name.upper():
+      try:
+        step = int(car_state.gearStep)
+        if step > 0:
+          return str(step)
+        else:
+          return "D"
+      except Exception:
+        return "D"
+
+    if "PARK" in gear_name.upper():
+      return "P"
+
+    if "REVERSE" in gear_name.upper():
+      return "R"
+
+    if "NEUTRAL" in gear_name.upper():
+      return "N"
+
+    if "SPORT" in gear_name.upper():
+      return "S"
+
+    if "LOW" in gear_name.upper():
+      return "L"
+
+    if "BRAKE" in gear_name.upper():
+      return "B"
+
+    if "ECO" in gear_name.upper():
+      return "E"
+
+    if "UNKNOWN" in gear_name.upper():
+      return "U"
+
+    return "M"
 
   def _get_cruise_gap(self) -> int:
     try:
       personality = Params().get_int("LongitudinalPersonality")
       gap = int(personality) + 1
     except Exception:
-      gap = 1
+      gap = 8
 
     return gap
-
-  def _get_traffic_light_color(self) -> Optional[rl.Color]:
-    try:
-      state = int(ui_state.sm["longitudinalPlan"].trafficState)
-    except Exception:
-      return None
-
-    if state == 1:      # RED
-      return rl.Color(255, 0, 0, 255)
-
-    if state == 2:      # GREEN
-      return rl.Color(0, 255, 0, 255)
-
-    return None
 
   def _draw_set_speed(self, rect: rl.Rectangle) -> None:
     """
@@ -352,14 +395,6 @@ class HudRenderer(Widget):
 
     # draw background
     rl.draw_texture(bg, panel_x, panel_y, rl.WHITE)
-
-    # ----- traffic light dot (top-left on panel) -----
-    # NOTE: 이미지로 바꾸고 싶으면 여기서 draw_circle 대신 texture 2개(빨강/초록) 로드해서 draw_texture 하세요.
-    tl = self._get_traffic_light_color()
-    if tl is not None:
-      dot_x = panel_x + 55
-      dot_y = panel_y + 18
-      rl.draw_circle(dot_x, dot_y, 10, tl)
 
     # ----- current speed (big, left) -----
     if self._debug_speed_panel:
@@ -383,7 +418,25 @@ class HudRenderer(Widget):
       0,
       rl.WHITE,
     )
+    
+    mode_text, mode_color = self._get_driving_mode_text_and_color()
 
+    if mode_text:
+      mode_font = 35
+      mode_size = measure_text_cached(self._font_semi_bold, mode_text, mode_font)
+
+      mode_x = panel_x + 18
+      mode_y = int(panel_y + panel_h * 0.15 - mode_size.y * 0.5)
+
+      rl.draw_text_ex(
+        self._font_semi_bold,
+        mode_text,
+        rl.Vector2(mode_x, mode_y),
+        mode_font,
+        0,
+        mode_color,
+      )
+  
     # ----- set speed (center, smaller) -----
     show_set = self._engaged and self.is_cruise_set
     if show_set or self._debug_speed_panel:
