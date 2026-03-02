@@ -65,46 +65,56 @@ def apply_steer_angle_limits_physics(desired_sw_deg: float,
                                      wheelbase_m: float,
                                      steer_ratio: float,
                                      steer_sw_max_deg: float) -> float:
-  max_lat_accel = 5.0   # m/s^2
-  max_lat_jerk  = 4.0   # m/s^3
-  max_sw_rate_deg_per_tick = 2.0   # ★ EPS 보호용 상한
-
-  v = max(float(v_ego), 1.0)
-
+  v = max(float(v_ego), 0.1)
+  
+  # 속도별 파라미터 (30km/h 이하 특화)
+  V_BP = [0.0, 2.0, 8.3]  # 0, 7km/h, 30km/h
+  ACCEL = [0.8, 2.2, 5.0]
+  JERK = [1.0, 2.0, 4.0] 
+  RATE = [0.3, 0.8, 2.0]
+  
+  max_lat_accel = float(np.interp(v, V_BP, ACCEL))
+  max_lat_jerk = float(np.interp(v, V_BP, JERK))
+  max_sw_rate = float(np.interp(v, V_BP, RATE))
+  
+  # 30km/h 이하 + 큰 조향각에서 추가 제한 (소음 방지 핵심)
+  if v < 8.3:
+    angle_now = abs(float(steering_sw_deg))
+    angle_target = abs(float(desired_sw_deg))
+    max_angle = max(angle_now, angle_target)
+    
+    if max_angle > 15.0:
+      factor = float(np.interp(min(max_angle, 45.0), [15.0, 45.0], [1.0, 0.4]))
+      max_sw_rate *= factor
+  
+  # 기본 계산
   target_sw = float(np.clip(desired_sw_deg, -steer_sw_max_deg, steer_sw_max_deg))
-
   target_rw = target_sw / steer_ratio
-  last_rw   = float(last_sw_deg) / steer_ratio
-
-  # --- accel limit ---
+  last_rw = float(last_sw_deg) / steer_ratio
+  
   rw_max_rad = np.arctan((max_lat_accel * wheelbase_m) / (v * v))
   rw_max = float(np.degrees(rw_max_rad))
-
-  # --- jerk -> rate limit ---
-  sec2 = 1.2
-  max_drw_dt = (max_lat_jerk * wheelbase_m) / (v * v * sec2)     # rad/s
-  max_drw_per_tick = max_drw_dt * DT_CTRL                        # rad/tick
-  max_drw_per_tick_deg = float(np.degrees(max_drw_per_tick))
-
-  max_drw_per_tick_deg = min(
-    max_drw_per_tick_deg,
-    max_sw_rate_deg_per_tick / steer_ratio
-  )
-  err = abs(target_sw - last_sw_deg)
-  if err > 20.0:
-    max_drw_per_tick_deg *= 0.5
   
-  # --- rate limit ---
+  sec2 = 1.0
+  max_drw_dt = (max_lat_jerk * wheelbase_m) / (v * v * sec2)
+  max_drw_per_tick = max_drw_dt * DT_CTRL
+  max_drw_per_tick_deg = float(np.degrees(max_drw_per_tick))
+  
+  max_drw_per_tick_deg = min(max_drw_per_tick_deg, max_sw_rate / steer_ratio)
+  
+  # 급격한 변화 시 추가 완화
+  if abs(target_sw - last_sw_deg) > 10.0:
+    max_drw_per_tick_deg *= 0.6
+  
   cmd_rw = rate_limit(target_rw, last_rw, -max_drw_per_tick_deg, max_drw_per_tick_deg)
-
-  # --- accel clip ---
   cmd_rw = float(np.clip(cmd_rw, -rw_max, rw_max))
-
+  
   if not lat_active:
     cmd_rw = float(steering_sw_deg) / steer_ratio
-
+  
   cmd_sw = cmd_rw * steer_ratio
   return float(np.clip(cmd_sw, -steer_sw_max_deg, steer_sw_max_deg))
+
   
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
