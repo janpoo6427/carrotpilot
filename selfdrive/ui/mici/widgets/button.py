@@ -327,7 +327,19 @@ class BigMultiParamToggle(BigMultiToggle):
     self._load_value()
 
   def _load_value(self):
-    self.set_value(self._options[self._params.get(self._param) or 0])
+    param_value = self._params.get(self._param) or 0
+
+    try:
+        idx = int(param_value)
+    except (ValueError, TypeError):
+        idx = 0
+
+    if idx < 0 or idx >= len(self._options):
+        idx = 0
+        self._params.put(self._param, str(idx))
+
+    self.set_value(self._options[idx])
+
 
   def _handle_mouse_release(self, mouse_pos: MousePos):
     super()._handle_mouse_release(mouse_pos)
