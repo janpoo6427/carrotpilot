@@ -155,6 +155,7 @@ class CarController(CarControllerBase):
 
     self.driver_steering_angle_above_timer = 150
     self.apply_angle_filtered = 0.0
+    self.lat_active_prev = False  # 추가
 
   def update(self, CC, CS, now_nanos):
 
@@ -297,6 +298,8 @@ class CarController(CarControllerBase):
       self.lkas_max_torque = 0
       self.apply_angle_filtered = CS.out.steeringAngleDeg
     else:
+      if not self.lat_active_prev:
+        self.apply_angle_filtered = CS.out.steeringAngleDeg
       alpha = float(np.interp(
           CS.out.vEgoRaw,
           [0.0,  2.8,  5.6,  8.3,  22.2],
@@ -306,11 +309,9 @@ class CarController(CarControllerBase):
           alpha * apply_angle
           + (1.0 - alpha) * self.apply_angle_filtered
       )
-    apply_angle = float(self.apply_angle_filtered)
-
-
-
+    self.lat_active_prev = CC.latActive
     self.apply_angle_last = apply_angle
+    apply_angle = float(self.apply_angle_filtered)
 
     # Hold torque with induced temporary fault when cutting the actuation bit
     torque_fault = CC.latActive and not apply_steer_req
