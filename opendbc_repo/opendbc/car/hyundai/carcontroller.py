@@ -1,6 +1,6 @@
 import numpy as np
 from opendbc.can import CANPacker
-from opendbc.car import Bus, DT_CTRL, apply_driver_steer_torque_limits, common_fault_avoidance, make_tester_present_msg, structs, apply_std_steer_angle_limits
+from opendbc.car import Bus, DT_CTRL, apply_driver_steer_torque_limits, common_fault_avoidance, make_tester_present_msg, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.hyundai import hyundaicanfd, hyundaican
 from opendbc.car.hyundai.carstate import CarState
@@ -57,6 +57,15 @@ def process_hud_alert(enabled, fingerprint, hud_control):
 def rate_limit(x, x_last, lo, hi):
   return float(np.clip(x, x_last + lo, x_last + hi))
 
+def sp_smooth_angle(v_ego_raw: float, apply_angle: float, apply_angle_last: float) -> float:
+  alpha = float(np.interp(
+    v_ego_raw,
+    CarControllerParams.SMOOTHING_ANGLE_VEGO_MATRIX,
+    CarControllerParams.SMOOTHING_ANGLE_ALPHA_MATRIX
+  ))
+  alpha = min(alpha, 1.0)
+  return apply_angle * alpha + apply_angle_last * (1.0 - alpha)
+
 def apply_steer_angle_limits_physics(desired_sw_deg: float,
                                      last_sw_deg: float,
                                      v_ego: float,
@@ -93,6 +102,10 @@ def apply_steer_angle_limits_physics(desired_sw_deg: float,
   err = abs(target_sw - last_sw_deg)
   if err > 20.0:
     max_drw_per_tick_deg *= 0.5
+
+  # ★ 추가: 복귀 방향일 때 rate limit 2배 완화
+  if abs(target_sw) < abs(last_sw_deg) - 0.5:
+    max_drw_per_tick_deg *= 2.0
 
   # --- rate limit ---
   cmd_rw = rate_limit(target_rw, last_rw, -max_drw_per_tick_deg, max_drw_per_tick_deg)
@@ -138,6 +151,7 @@ class CarController(CarControllerBase):
     self.button_spam3 = 1
 
     self.apply_angle_last = 0
+    self.apply_angle_filtered = 0.0
     self.lkas_max_torque = 0
     self.angle_max_torque = 250
 
@@ -152,12 +166,6 @@ class CarController(CarControllerBase):
 
     self.steerDeltaUpOrg = self.steerDeltaUp = self.steerDeltaUpLC = self.params.STEER_DELTA_UP
     self.steerDeltaDownOrg = self.steerDeltaDown = self.steerDeltaDownLC = self.params.STEER_DELTA_DOWN
-
-    self.apply_angle_smoothed = 0.0
-    self.SMOOTH_BP = [0.0,  11.1]   # m/s (0 kph, 40 kph)
-    self.SMOOTH_V  = [0.15,  0.60]  # alpha
-    self.TORQUE_BP = [0.0,  8.3]    # m/s (0 kph, 30 kph)
-    self.TORQUE_V  = [self.params.ANGLE_MIN_TORQUE, self.params.ANGLE_MAX_TORQUE]
 
   def update(self, CC, CS, now_nanos):
 
@@ -238,57 +246,83 @@ class CarController(CarControllerBase):
       self.params.ANGLE_LIMITS.STEER_ANGLE_MAX
     )
 
-
     if angle_control:
       apply_steer_req = CC.latActive
 
-      # ★ apply_angle EMA 스무딩 (모델 노이즈 → EPS chatter 방지)
-      alpha = float(np.interp(CS.out.vEgoRaw, self.SMOOTH_BP, self.SMOOTH_V))
+      # ── 1) vEgo 기반 LPF 스무딩 (EPS chatter 억제) ──────────
       if CC.latActive:
-        self.apply_angle_smoothed = alpha * apply_angle + (1.0 - alpha) * self.apply_angle_smoothed
+        if CS.out.steeringPressed:
+          # ★ 추가: 운전자 개입 중 → 실제 각도로 즉시 리셋
+          # 손 놓는 순간 필터 갭 없이 부드럽게 복귀 보장
+          self.apply_angle_filtered = CS.out.steeringAngleDeg
+        else:
+          apply_angle = sp_smooth_angle(CS.out.vEgoRaw, apply_angle, self.apply_angle_filtered)
+          self.apply_angle_filtered = apply_angle
       else:
-        # 비활성 시 실제 핸들 각도로 초기화 → 재활성화 순간 튐 방지
-        self.apply_angle_smoothed = CS.out.steeringAngleDeg
-      apply_angle = self.apply_angle_smoothed
+        # 비활성 시 실제 각도로 리셋 → 재활성 순간 튐 방지
+        self.apply_angle_filtered = CS.out.steeringAngleDeg
 
-      # ★ lkas_max_torque: v_ego(m/s) 기준 보간
-      if CS.out.steeringPressed:
-        self.lkas_max_torque = max(self.lkas_max_torque - self.params.ANGLE_TORQUE_DOWN_RATE, self.params.ANGLE_MIN_TORQUE)
+      # ── 2) vEgo 기반 토크 상한 ──────────────────────────────
+      speed_based_max = float(np.interp(
+        CS.out.vEgo,
+        self.params.ANGLE_TORQUE_VEGO_MATRIX,
+        self.params.ANGLE_TORQUE_MAX_MATRIX
+      ))
+
+      # ── 3) angle error 기반 토크 factor ─────────────────────
+      # apply_angle(EPS 명령) vs 실제 각도 오차로 필요 토크 결정
+      cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
+      is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 1.0
+
+      if is_returning:
+        # 복귀 중: 오차 클수록 토크 올려 빠른 복귀 보장
+        error_factor   = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
+        torque_rate_up = 8.0
       else:
-        target_torque = float(np.interp(CS.out.vEgoRaw, self.TORQUE_BP, self.TORQUE_V))
+        # 유지/진입: 오차 작으면 토크 낮춰 chatter 방지
+        error_factor   = float(np.clip(0.3 + 0.7 * (cmd_angle_error / 5.0), 0.3, 1.0))
+        torque_rate_up = 3.0
+
+      target_torque    = speed_based_max * error_factor
+      torque_rate_down = 5.0
+
+      # ── 4) lkas_max_torque 업데이트 ─────────────────────────
+      if CS.out.steeringPressed:
+        self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 4, 0)
+      else:
         self.lkas_max_torque = float(np.clip(
           target_torque,
-          self.lkas_max_torque - self.params.ANGLE_TORQUE_DOWN_RATE,
-          self.lkas_max_torque + self.params.ANGLE_TORQUE_UP_RATE
+          self.lkas_max_torque - torque_rate_down,
+          self.lkas_max_torque + torque_rate_up
         ))
+      self.lkas_max_torque = float(np.clip(self.lkas_max_torque, 0, self.angle_max_torque))
 
     else:
+      # ── 기존 torque control 로직 유지 ───────────────────────
       if CS.out.steeringPressed:
-        #self.apply_angle_last = CS.out.steeringAngleDeg
         self.lkas_max_torque = max(self.lkas_max_torque - 20, 25)
       else:
-        target_torque = self.angle_max_torque
-
-        max_steering_tq = self.params.STEER_DRIVER_ALLOWANCE * 0.7
-        rate_ratio = max(20, max_steering_tq - abs(CS.out.steeringTorque)) / max_steering_tq
-        rate_up = self.params.ANGLE_TORQUE_UP_RATE * rate_ratio
-        rate_down = self.params.ANGLE_TORQUE_DOWN_RATE * rate_ratio
+        target_torque    = self.angle_max_torque
+        max_steering_tq  = self.params.STEER_DRIVER_ALLOWANCE * 0.7
+        rate_ratio       = max(20, max_steering_tq - abs(CS.out.steeringTorque)) / max_steering_tq
+        rate_up          = self.params.ANGLE_TORQUE_UP_RATE   * rate_ratio
+        rate_down        = self.params.ANGLE_TORQUE_DOWN_RATE * rate_ratio
 
         if self.lkas_max_torque > target_torque:
           self.lkas_max_torque = max(self.lkas_max_torque - rate_down, target_torque)
         else:
-          self.lkas_max_torque = min(self.lkas_max_torque + rate_up, target_torque)
+          self.lkas_max_torque = min(self.lkas_max_torque + rate_up,   target_torque)
 
     if not CC.latActive:
-      apply_torque = 0
+      apply_torque         = 0
       self.lkas_max_torque = 0
 
     self.apply_angle_last = apply_angle
 
     # Hold torque with induced temporary fault when cutting the actuation bit
-    torque_fault = CC.latActive and not apply_steer_req
-
+    torque_fault          = CC.latActive and not apply_steer_req
     self.apply_torque_last = apply_torque
+
 
     # accel + longitudinal
     accel = float(np.clip(actuators.accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX))

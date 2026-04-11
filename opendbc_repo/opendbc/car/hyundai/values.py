@@ -35,6 +35,13 @@ class CarControllerParams:
   ANGLE_TORQUE_UP_RATE = 8 #2  # Indicates how fast the torque ramps up after user intervention.
   ANGLE_TORQUE_DOWN_RATE = 12  #4 Indicates how fast the torque ramps down during user intervention (handing off).
 
+  # ★ 추가: angle control 조향각 스무딩용 LPF 행렬 (단위: m/s)
+  # vEgo:  0     2     5     10    20
+  # alpha: 0.50  0.60  0.75  0.90  1.00
+  # alpha=1.0 → 필터 없음(고속), alpha↓ → 강한 스무딩(저속 chatter 억제)
+  SMOOTHING_ANGLE_VEGO_MATRIX  = [0.0,  2.0,  5.0,  10.0, 20.0]  # m/s
+  SMOOTHING_ANGLE_ALPHA_MATRIX = [0.50, 0.60, 0.75, 0.90, 1.00]
+
   def __init__(self, CP):
     self.STEER_DELTA_UP = 3
     self.STEER_DELTA_DOWN = 7
@@ -43,6 +50,12 @@ class CarControllerParams:
     self.STEER_DRIVER_FACTOR = 1
     self.STEER_THRESHOLD = 150
     self.STEER_STEP = 1  # 100 Hz
+    # ★ 추가: angle control 토크 상한 행렬 (단위: m/s)
+    # vEgo:     0    2    5     10    20
+    # max_tq:  80   100  140   200   250
+    # 저속에서 토크 낮춰 EPS 과반응(chatter) 억제
+    self.ANGLE_TORQUE_VEGO_MATRIX  = [0.0, 2.0,  5.0,  10.0, 20.0]  # m/s
+    self.ANGLE_TORQUE_MAX_MATRIX   = [80,  100,  140,   200,  250]   # torque
 
     if CP.flags & HyundaiFlags.CANFD:
       self.STEER_MAX = 270
