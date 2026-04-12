@@ -262,6 +262,16 @@ class Device:
         clipped_brightness = ((clipped_brightness + 16.0) / 116.0) ** 3.0
 
       clipped_brightness = float(np.interp(clipped_brightness, [0, 1], [30, 100]))
+      # 이벤트 감지 시 타이머 리셋
+      ss = ui_state.sm['selfdriveState']
+      has_event = ss.alertStatus != log.SelfdriveState.AlertStatus.normal and ss.alertSize != 0
+      if has_event:
+        self._brightness_timer = 0  # 이벤트 발생 시 타이머 리셋 → 밝게 유지
+
+      self._brightness_timer += 1
+      if self._brightness_timer >= self._BRIGHTNESS_DELAY:
+        clipped_brightness *= ui_state.show_brightness_ratio
+
       self._brightness_timer += 1
       if self._brightness_timer >= self._BRIGHTNESS_DELAY:
         clipped_brightness *= ui_state.show_brightness_ratio 
