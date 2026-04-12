@@ -266,8 +266,9 @@ class Device:
       ss = ui_state.sm['selfdriveState']
       has_event = ss.alertSize != 0 # and ss.alertStatus != log.SelfdriveState.AlertStatus.normal
       if has_event:
-        self._brightness_timer = 0  # 이벤트 발생 시 타이머 리셋 → 밝게 유지
-        
+        self._brightness_timer = 0
+        self._brightness_filter.x = float(min(self._last_brightness / (ui_state.show_brightness_ratio or 1.0) * 2.0, 100.0))
+
       self._brightness_timer += 1
       if self._brightness_timer >= self._BRIGHTNESS_DELAY:
         # 타이머 경과: 설정값 그대로 → 어두움
