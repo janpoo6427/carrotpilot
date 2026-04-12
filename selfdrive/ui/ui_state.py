@@ -208,7 +208,7 @@ class Device:
 
     self._offroad_brightness: int = BACKLIGHT_OFFROAD
     self._last_brightness: int = 0
-    self._brightness_filter = FirstOrderFilter(BACKLIGHT_OFFROAD, 10.00, 1 / gui_app.target_fps)
+    self._brightness_filter = FirstOrderFilter(BACKLIGHT_OFFROAD, 2.00, 1 / gui_app.target_fps)
     self._brightness_thread: threading.Thread | None = None
     self._brightness_timer: int = 0
     self._BRIGHTNESS_DELAY: int = 200
@@ -277,7 +277,7 @@ class Device:
         try:
           exp_val = ui_state.sm['wideRoadCameraState'].exposureValPercent
           # 어두운 환경(exp_val 높음) → 화면 밝기 낮춤 (30~100% 범위)
-          auto_ratio = float(np.interp(exp_val, [20.0, 80.0], [1.0, 0.3]))
+          auto_ratio = float(np.interp(exp_val, [0.0, 50.0], [0.8, 0.3]))
           clipped_brightness *= auto_ratio
         except Exception:
           pass  # 센서값 없으면 원래 밝기 유지
