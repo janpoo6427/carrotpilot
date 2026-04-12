@@ -286,8 +286,8 @@ class Device:
 
     if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
       self._reset_interactive_timeout()
-      self._brightness_timer = 0      # ← 추가: 터치 시 타이머 리셋 (밝기 복구)
-
+      self._brightness_timer = 0
+      self._brightness_filter.x = float(self._last_brightness / (ui_state.show_brightness_ratio or 1.0))
 
     interaction_timeout = time.monotonic() > self._interaction_time
     if interaction_timeout and not self._prev_timed_out:
