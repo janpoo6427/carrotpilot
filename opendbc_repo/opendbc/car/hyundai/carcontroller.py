@@ -152,6 +152,10 @@ class CarController(CarControllerBase):
 
     self.apply_angle_last = 0
     self.apply_angle_filtered = 0.0
+    self.steering_pressed_frames = 0          # ★ 추가: 개입 지속 프레임 카운터
+    self.lkas_torque_fade_frames = 0          # ★ 추가: 토크 페이드아웃 프레임 카운터
+    self.TORQUE_FADE_FRAMES = 30              # ★ 추가: 0.3초간 부드럽게 토크 낮춤
+
     self.lkas_max_torque = 0
     self.angle_max_torque = 250
 
@@ -249,17 +253,28 @@ class CarController(CarControllerBase):
     if angle_control:
       apply_steer_req = CC.latActive
 
+      # ── 운전자 개입 감지 (히스테리시스로 ON/OFF 진동 방지) ──
+      if CS.out.steeringPressed:
+        self.steering_pressed_frames = min(self.steering_pressed_frames + 1, 100)
+      else:
+        self.steering_pressed_frames = max(self.steering_pressed_frames - 3, 0)
+
+      # 5프레임(50ms) 이상 지속될 때만 개입으로 확정
+      driver_intervening = self.steering_pressed_frames >= 5
+
       # ── 1) vEgo 기반 LPF 스무딩 (EPS chatter 억제) ──────────
       if CC.latActive:
-        if CS.out.steeringPressed:
-          # ★ 추가: 운전자 개입 중 → 실제 각도로 즉시 리셋
-          # 손 놓는 순간 필터 갭 없이 부드럽게 복귀 보장
-          self.apply_angle_filtered = CS.out.steeringAngleDeg
+        if driver_intervening:
+          # 개입 확정 시 → 실제 각도로 부드럽게 추적
+          # 즉시 리셋 대신 빠른 alpha로 수렴시켜 튐 방지
+          self.apply_angle_filtered = (
+            0.3 * self.apply_angle_filtered +
+            0.7 * CS.out.steeringAngleDeg
+          )
         else:
           apply_angle = sp_smooth_angle(CS.out.vEgoRaw, apply_angle, self.apply_angle_filtered)
           self.apply_angle_filtered = apply_angle
       else:
-        # 비활성 시 실제 각도로 리셋 → 재활성 순간 튐 방지
         self.apply_angle_filtered = CS.out.steeringAngleDeg
 
       # ── 2) vEgo 기반 토크 상한 ──────────────────────────────
@@ -270,16 +285,13 @@ class CarController(CarControllerBase):
       ))
 
       # ── 3) angle error 기반 토크 factor ─────────────────────
-      # apply_angle(EPS 명령) vs 실제 각도 오차로 필요 토크 결정
       cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
       is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 1.0
 
       if is_returning:
-        # 복귀 중: 오차 클수록 토크 올려 빠른 복귀 보장
         error_factor   = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
         torque_rate_up = 8.0
       else:
-        # 유지/진입: 오차 작으면 토크 낮춰 chatter 방지
         error_factor   = float(np.clip(0.3 + 0.7 * (cmd_angle_error / 5.0), 0.3, 1.0))
         torque_rate_up = 3.0
 
@@ -287,14 +299,32 @@ class CarController(CarControllerBase):
       torque_rate_down = 5.0
 
       # ── 4) lkas_max_torque 업데이트 ─────────────────────────
-      if CS.out.steeringPressed:
-        self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 4, 0)
-      else:
+      if driver_intervening:
+        # 개입 확정 시 → 페이드아웃 카운터 리셋 후 부드럽게 0으로
+        self.lkas_torque_fade_frames = self.TORQUE_FADE_FRAMES
+        fade_ratio = max(self.lkas_torque_fade_frames / self.TORQUE_FADE_FRAMES, 0.0)
         self.lkas_max_torque = float(np.clip(
-          target_torque,
-          self.lkas_max_torque - torque_rate_down,
-          self.lkas_max_torque + torque_rate_up
+          self.lkas_max_torque * fade_ratio,
+          0, self.angle_max_torque
         ))
+        self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 2, 0)
+      else:
+        if self.lkas_torque_fade_frames > 0:
+          # 개입 끝난 직후 → 페이드아웃 잔여 구간, 천천히 복귀
+          self.lkas_torque_fade_frames -= 1
+          fade_ratio = 1.0 - (self.lkas_torque_fade_frames / self.TORQUE_FADE_FRAMES)
+          self.lkas_max_torque = float(np.clip(
+            target_torque * fade_ratio,
+            self.lkas_max_torque - torque_rate_down,
+            self.lkas_max_torque + torque_rate_up * 0.5
+          ))
+        else:
+          # 완전히 복귀 후 → 정상 토크 제어
+          self.lkas_max_torque = float(np.clip(
+            target_torque,
+            self.lkas_max_torque - torque_rate_down,
+            self.lkas_max_torque + torque_rate_up
+          ))
       self.lkas_max_torque = float(np.clip(self.lkas_max_torque, 0, self.angle_max_torque))
 
     else:
