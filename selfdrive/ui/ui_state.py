@@ -267,14 +267,10 @@ class Device:
       has_event = ss.alertStatus != log.SelfdriveState.AlertStatus.normal and ss.alertSize != 0
       if has_event:
         self._brightness_timer = 0  # 이벤트 발생 시 타이머 리셋 → 밝게 유지
-
+        
       self._brightness_timer += 1
       if self._brightness_timer >= self._BRIGHTNESS_DELAY:
-        clipped_brightness *= ui_state.show_brightness_ratio
-
-      self._brightness_timer += 1
-      if self._brightness_timer >= self._BRIGHTNESS_DELAY:
-        clipped_brightness *= ui_state.show_brightness_ratio 
+        clipped_brightness *= min(ui_state.show_brightness_ratio * 2.0, 1.0)
     else:
       # offroad 또는 센서 없음: 타이머 리셋
       self._brightness_timer = 0
@@ -297,7 +293,7 @@ class Device:
     if ignition_just_turned_off or any(ev.left_down for ev in gui_app.mouse_events):
       self._reset_interactive_timeout()
       self._brightness_timer = 0
-      self._brightness_filter.x = float(self._last_brightness / (ui_state.show_brightness_ratio or 1.0))
+      self._brightness_filter.x = float(min(self._last_brightness / (ui_state.show_brightness_ratio or 1.0) * 2.0, 100.0))
 
     interaction_timeout = time.monotonic() > self._interaction_time
     if interaction_timeout and not self._prev_timed_out:
