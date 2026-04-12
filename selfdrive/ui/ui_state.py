@@ -270,7 +270,12 @@ class Device:
         
       self._brightness_timer += 1
       if self._brightness_timer >= self._BRIGHTNESS_DELAY:
+        # 타이머 경과: 설정값 그대로 → 어두움
+        clipped_brightness *= ui_state.show_brightness_ratio
+      else:
+        # 타이머 미만 (초기/이벤트/터치 직후): 설정값 × 2배 → 밝음
         clipped_brightness *= min(ui_state.show_brightness_ratio * 2.0, 1.0)
+
     else:
       # offroad 또는 센서 없음: 타이머 리셋
       self._brightness_timer = 0
