@@ -272,8 +272,15 @@ class Device:
       self._brightness_timer += 1
       ratio = ui_state.show_brightness_ratio
       if ratio <= 0.0:
-        # 자동 밝기
-        pass
+        # 자동모드: exposureValPercent가 높을수록(어두운 환경) 화면도 어둡게
+        # exposureValPercent를 직접 읽어서 반비례 적용
+        try:
+          exp_val = ui_state.sm['wideRoadCameraState'].exposureValPercent
+          # 어두운 환경(exp_val 높음) → 화면 밝기 낮춤 (30~100% 범위)
+          auto_ratio = float(np.interp(exp_val, [20.0, 80.0], [1.0, 0.3]))
+          clipped_brightness *= auto_ratio
+        except Exception:
+          pass  # 센서값 없으면 원래 밝기 유지
       elif self._brightness_timer >= self._BRIGHTNESS_DELAY:
         # 타이머 경과: 설정값 그대로 → 어두움
         clipped_brightness *= ratio
