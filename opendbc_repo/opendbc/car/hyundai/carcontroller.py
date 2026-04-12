@@ -299,15 +299,13 @@ class CarController(CarControllerBase):
       torque_rate_down = 5.0
 
       # ── 4) lkas_max_torque 업데이트 ─────────────────────────
+            # ── 4) lkas_max_torque 업데이트 ─────────────────────────
       if driver_intervening:
-        # 개입 확정 시 → 페이드아웃 카운터 리셋 후 부드럽게 0으로
+        # ★ 수정: 매 tick 리셋 후 fade_ratio=1.0 되는 버그 제거
+        # 카운터는 고정, 토크만 매 tick 서서히 감소
         self.lkas_torque_fade_frames = self.TORQUE_FADE_FRAMES
-        fade_ratio = max(self.lkas_torque_fade_frames / self.TORQUE_FADE_FRAMES, 0.0)
-        self.lkas_max_torque = float(np.clip(
-          self.lkas_max_torque * fade_ratio,
-          0, self.angle_max_torque
-        ))
         self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 2, 0)
+
       else:
         if self.lkas_torque_fade_frames > 0:
           # 개입 끝난 직후 → 페이드아웃 잔여 구간, 천천히 복귀
