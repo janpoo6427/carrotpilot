@@ -276,8 +276,8 @@ class Device:
         # exposureValPercent를 직접 읽어서 반비례 적용
         try:
           exp_val = ui_state.sm['wideRoadCameraState'].exposureValPercent
-          # 어두운 환경(exp_val 높음) → 화면 밝기 낮춤 (30~100% 범위)
-          auto_ratio = float(np.interp(exp_val, [0.0, 50.0], [0.8, 0.3]))
+          # 어두운 환경(exp_val 높음) → 화면 밝기 낮춤 (30~80% 범위)
+          auto_ratio = float(np.interp(exp_val, [0.0, 25.0], [0.8, 0.3]))
           clipped_brightness *= auto_ratio
         except Exception:
           pass  # 센서값 없으면 원래 밝기 유지
