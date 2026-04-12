@@ -262,9 +262,12 @@ class Device:
         clipped_brightness = ((clipped_brightness + 16.0) / 116.0) ** 3.0
 
       clipped_brightness = float(np.interp(clipped_brightness, [0, 1], [30, 100]))
+      self._brightness_timer += 1
+      if self._brightness_timer >= self._BRIGHTNESS_DELAY:
+        clipped_brightness *= ui_state.show_brightness_ratio 
     else:
-        # offroad 또는 센서 없음: 타이머 리셋
-        self._brightness_timer = 0
+      # offroad 또는 센서 없음: 타이머 리셋
+      self._brightness_timer = 0
 
     brightness = round(self._brightness_filter.update(clipped_brightness))
     if not self._awake:
