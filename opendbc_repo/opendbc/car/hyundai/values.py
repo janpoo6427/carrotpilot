@@ -40,7 +40,7 @@ class CarControllerParams:
   # alpha: 0.50  0.60  0.75  0.90  1.00
   # alpha=1.0 → 필터 없음(고속), alpha↓ → 강한 스무딩(저속 chatter 억제)
   SMOOTHING_ANGLE_VEGO_MATRIX  = [0.0,  2.0,  5.0,  10.0, 20.0]  # m/s
-  SMOOTHING_ANGLE_ALPHA_MATRIX = [0.50, 0.60, 0.75, 0.90, 1.00]
+  SMOOTHING_ANGLE_ALPHA_MATRIX = [0.65, 0.72, 0.82, 0.92, 1.00]
 
   def __init__(self, CP):
     self.STEER_DELTA_UP = 3
