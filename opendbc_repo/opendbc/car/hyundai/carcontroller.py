@@ -288,15 +288,24 @@ class CarController(CarControllerBase):
       cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
       is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 2.0
 
+      # ★ 수정: 고속일수록 torque_rate_up을 높여 반응성 확보
+      # 16.7 m/s(60km/h) 이상에서는 rate_up을 최대 10.0까지 허용
+      speed_rate_boost = float(np.interp(
+        CS.out.vEgo,
+        [0.0, 10.0, 16.7],
+        [1.0, 1.0,  2.5]
+      ))
+
       if is_returning:
         error_factor   = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
-        torque_rate_up = 5.0
+        torque_rate_up = 5.0 * speed_rate_boost
       else:
-        error_factor   = float(np.clip(0.4 + 0.7 * (cmd_angle_error / 5.0), 0.3, 1.0))
-        torque_rate_up = 3.0
+        error_factor   = float(np.clip(0.4 + 0.6 * (cmd_angle_error / 5.0), 0.4, 1.0))
+        torque_rate_up = 3.0 * speed_rate_boost
 
       target_torque    = speed_based_max * error_factor
       torque_rate_down = 5.0
+
 
       # ── 4) lkas_max_torque 업데이트 ─────────────────────────
             # ── 4) lkas_max_torque 업데이트 ─────────────────────────
