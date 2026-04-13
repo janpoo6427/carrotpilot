@@ -296,7 +296,7 @@ class CarController(CarControllerBase):
       ))
 
       if is_returning:
-        error_factor = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
+        error_factor = float(np.clip(0.3 + 0.5 * (cmd_angle_error / 8.0), 0.3, 1.0))
       else:
         error_factor = float(np.clip(0.4 + 0.6 * (cmd_angle_error / 5.0), 0.4, 1.0))
 
