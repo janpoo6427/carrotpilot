@@ -105,7 +105,7 @@ def apply_steer_angle_limits_physics(desired_sw_deg: float,
 
   # ★ 추가: 복귀 방향일 때 rate limit 2배 완화
   if abs(target_sw) < abs(last_sw_deg) - 0.5:
-    max_drw_per_tick_deg *= 2.0
+    max_drw_per_tick_deg *= 1.3
 
   # --- rate limit ---
   cmd_rw = rate_limit(target_rw, last_rw, -max_drw_per_tick_deg, max_drw_per_tick_deg)
@@ -286,13 +286,13 @@ class CarController(CarControllerBase):
 
       # ── 3) angle error 기반 토크 factor ─────────────────────
       cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
-      is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 1.0
+      is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 2.0
 
       if is_returning:
         error_factor   = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
-        torque_rate_up = 8.0
+        torque_rate_up = 5.0
       else:
-        error_factor   = float(np.clip(0.3 + 0.7 * (cmd_angle_error / 5.0), 0.3, 1.0))
+        error_factor   = float(np.clip(0.4 + 0.7 * (cmd_angle_error / 5.0), 0.3, 1.0))
         torque_rate_up = 3.0
 
       target_torque    = speed_based_max * error_factor
@@ -304,7 +304,7 @@ class CarController(CarControllerBase):
         # ★ 수정: 매 tick 리셋 후 fade_ratio=1.0 되는 버그 제거
         # 카운터는 고정, 토크만 매 tick 서서히 감소
         self.lkas_torque_fade_frames = self.TORQUE_FADE_FRAMES
-        self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 2, 0)
+        self.lkas_max_torque = max(self.lkas_max_torque - torque_rate_down * 2, 25)
 
       else:
         if self.lkas_torque_fade_frames > 0:
