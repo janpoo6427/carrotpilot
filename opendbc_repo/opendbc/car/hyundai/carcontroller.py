@@ -104,7 +104,7 @@ def apply_steer_angle_limits_physics(desired_sw_deg: float,
     max_drw_per_tick_deg *= 0.5
 
   # ★ 추가: 복귀 방향일 때 rate limit 2배 완화
-  if abs(target_sw) < abs(last_sw_deg) - 0.5:
+  if abs(target_sw) < abs(last_sw_deg) - 0.5 and err <= 20.0:
     max_drw_per_tick_deg *= 1.3
 
   # --- rate limit ---
@@ -288,27 +288,30 @@ class CarController(CarControllerBase):
       cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
       is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 2.0
 
-      # ★ 수정: 고속일수록 torque_rate_up을 높여 반응성 확보
-      # 16.7 m/s(60km/h) 이상에서는 rate_up을 최대 10.0까지 허용
+      # 고속 반응성 boost (60km/h 이상에서 최대 2.5배)
       speed_rate_boost = float(np.interp(
         CS.out.vEgo,
         [0.0, 10.0, 16.7],
-        [1.0, 1.0,  2.5]
+        [1.0,  1.0,  2.5]
       ))
 
       if is_returning:
-        error_factor   = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
-        torque_rate_up = 5.0 * speed_rate_boost
+        error_factor = float(np.clip(0.5 + 0.5 * (cmd_angle_error / 8.0), 0.5, 1.0))
       else:
-        error_factor   = float(np.clip(0.4 + 0.6 * (cmd_angle_error / 5.0), 0.4, 1.0))
-        torque_rate_up = 3.0 * speed_rate_boost
+        error_factor = float(np.clip(0.4 + 0.6 * (cmd_angle_error / 5.0), 0.4, 1.0))
 
-      target_torque    = speed_based_max * error_factor
+      # ★ 핵심 수정: is_returning과 무관하게 단일 rate_up 사용
+      # → 플래그 전환 순간 토크 급변 원천 차단
+      # 저속: 3.0, 고속(60km/h): 7.5
+      torque_rate_up   = 3.0 * speed_rate_boost
       torque_rate_down = 5.0
+
+      target_torque = speed_based_max * error_factor
+
+
 
 
       # ── 4) lkas_max_torque 업데이트 ─────────────────────────
-            # ── 4) lkas_max_torque 업데이트 ─────────────────────────
       if driver_intervening:
         # ★ 수정: 매 tick 리셋 후 fade_ratio=1.0 되는 버그 제거
         # 카운터는 고정, 토크만 매 tick 서서히 감소
