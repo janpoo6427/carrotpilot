@@ -302,14 +302,14 @@ class CarController(CarControllerBase):
       self.blinking_signal = False
 
 
-    # update() 안, can_sends 생성 직전 (딱 7줄)
-    if hud_control.leadVisible:
-      self.lead_visible_counter = min(self.lead_visible_counter + 1, 100)
+    # 80m 이상은 ON 카운터를 올리지 않음
+    if hud_control.leadVisible and hud_control.leadDistance < 80.0:
+      self.lead_visible_counter = min(self.lead_visible_counter + 1, 30)
     else:
-      self.lead_visible_counter = max(self.lead_visible_counter - 1, -100)
+      self.lead_visible_counter = max(self.lead_visible_counter - 1, -50)
 
-    if   self.lead_visible_counter >=  100: self.lead_visible_hys = True
-    elif self.lead_visible_counter <= -100: self.lead_visible_hys = False
+    if   self.lead_visible_counter >= 30:  self.lead_visible_hys = True
+    elif self.lead_visible_counter <= -50: self.lead_visible_hys = False
 
     can_sends = []
 
