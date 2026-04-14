@@ -304,9 +304,9 @@ class CarController(CarControllerBase):
 
     # update() 안, can_sends 생성 직전 (딱 7줄)
     if hud_control.leadVisible:
-      self.lead_visible_counter = min(self.lead_visible_counter + 1, 3)
+      self.lead_visible_counter = min(self.lead_visible_counter + 1, 100)
     else:
-      self.lead_visible_counter = max(self.lead_visible_counter - 1, -20)
+      self.lead_visible_counter = max(self.lead_visible_counter - 1, -100)
 
     if   self.lead_visible_counter >=  3: self.lead_visible_hys = True
     elif self.lead_visible_counter <= -20: self.lead_visible_hys = False
