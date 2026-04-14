@@ -308,8 +308,8 @@ class CarController(CarControllerBase):
     else:
       self.lead_visible_counter = max(self.lead_visible_counter - 1, -100)
 
-    if   self.lead_visible_counter >=  3: self.lead_visible_hys = True
-    elif self.lead_visible_counter <= -20: self.lead_visible_hys = False
+    if   self.lead_visible_counter >=  100: self.lead_visible_hys = True
+    elif self.lead_visible_counter <= -100: self.lead_visible_hys = False
 
     can_sends = []
 
