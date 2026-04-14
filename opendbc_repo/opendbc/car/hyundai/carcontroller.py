@@ -285,29 +285,24 @@ class CarController(CarControllerBase):
       ))
 
       # ── 3) angle error 기반 토크 factor ─────────────────────
-      cmd_angle_error = abs(apply_angle - CS.out.steeringAngleDeg)
-      is_returning    = abs(apply_angle) < abs(CS.out.steeringAngleDeg) - 2.0
+      # 모델 원본 각도 기준으로 오차 계산 (LPF 지연 영향 배제)
+      cmd_angle_error = abs(actuators.steeringAngleDeg - CS.out.steeringAngleDeg)
 
-      # 고속 반응성 boost (60km/h 이상에서 최대 2.5배)
+      # 오차 0° → factor 0.3 (최소 토크, 소음 억제)
+      # 오차 5° → factor 0.3 + 0.7*(5/7) = 0.8
+      # 오차 7° 이상 → factor 1.0 (최대 토크, 추종력 확보)
+      error_factor = float(np.clip(0.3 + 0.7 * (cmd_angle_error / 7.0), 0.3, 1.0))
+
+      # 고속 반응성 boost (60km/h 이상에서 torque_rate_up 최대 2.5배)
       speed_rate_boost = float(np.interp(
         CS.out.vEgo,
         [0.0, 10.0, 16.7],
         [1.0,  1.0,  2.5]
       ))
 
-      if is_returning:
-        error_factor = float(np.clip(0.3 + 0.5 * (cmd_angle_error / 8.0), 0.3, 1.0))
-      else:
-        error_factor = float(np.clip(0.4 + 0.6 * (cmd_angle_error / 5.0), 0.4, 1.0))
-
-      # ★ 핵심 수정: is_returning과 무관하게 단일 rate_up 사용
-      # → 플래그 전환 순간 토크 급변 원천 차단
-      # 저속: 3.0, 고속(60km/h): 7.5
       torque_rate_up   = 3.0 * speed_rate_boost
       torque_rate_down = 5.0
-
-      target_torque = speed_based_max * error_factor
-
+      target_torque    = speed_based_max * error_factor
 
 
 
