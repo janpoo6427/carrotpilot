@@ -155,6 +155,7 @@ class CarController(CarControllerBase):
     self.steering_pressed_frames = 0          # ★ 추가: 개입 지속 프레임 카운터
     self.lkas_torque_fade_frames = 0          # ★ 추가: 토크 페이드아웃 프레임 카운터
     self.TORQUE_FADE_FRAMES = 30              # ★ 추가: 0.3초간 부드럽게 토크 낮춤
+    self.angle_rate_filtered = 0.0   # ★ 추가: 각도 변화율 LPF
 
     self.lkas_max_torque = 0
     self.angle_max_torque = 250
@@ -284,16 +285,29 @@ class CarController(CarControllerBase):
         self.params.ANGLE_TORQUE_MAX_MATRIX
       ))
 
-      # ── 3) angle error 기반 토크 factor ─────────────────────
-      # 모델 원본 각도 기준으로 오차 계산 (LPF 지연 영향 배제)
-      cmd_angle_error = abs(actuators.steeringAngleDeg - CS.out.steeringAngleDeg)
+      # ── 3) 각도 변화율 기반 토크 factor ──────────────────────
+      # 핵심 원리:
+      # apply_angle 변화율(노이즈)이 크면 → 토크 낮춤 → EPS 소음 억제
+      # apply_angle 변화율(노이즈)이 작으면 → 토크 올림 → 추종력 확보
 
-      # 오차 0° → factor 0.3 (최소 토크, 소음 억제)
-      # 오차 5° → factor 0.3 + 0.7*(5/7) = 0.8
-      # 오차 7° 이상 → factor 1.0 (최대 토크, 추종력 확보)
-      error_factor = float(np.clip(0.3 + 0.7 * (cmd_angle_error / 7.0), 0.3, 1.0))
+      # tick당 각도 변화율 계산 (deg/tick)
+      angle_rate = abs(apply_angle - self.apply_angle_last)
 
-      # 고속 반응성 boost (60km/h 이상에서 torque_rate_up 최대 2.5배)
+      # 변화율에 LPF 적용 (순간 스파이크 제거)
+      self.angle_rate_filtered = (
+        0.7 * self.angle_rate_filtered +
+        0.3 * angle_rate
+      )
+
+      # 변화율 → noise_factor (변화율 클수록 토크 낮춤)
+      # 변화율 0.0°/tick → noise_factor 1.0 (토크 최대)
+      # 변화율 0.5°/tick → noise_factor 0.3 (토크 최소)
+      noise_factor = float(np.clip(
+        1.0 - (self.angle_rate_filtered / 0.5),
+        0.3, 1.0
+      ))
+
+      # 고속 반응성 boost
       speed_rate_boost = float(np.interp(
         CS.out.vEgo,
         [0.0, 10.0, 16.7],
@@ -302,7 +316,8 @@ class CarController(CarControllerBase):
 
       torque_rate_up   = 3.0 * speed_rate_boost
       torque_rate_down = 5.0
-      target_torque    = speed_based_max * error_factor
+      target_torque    = speed_based_max * noise_factor
+
 
 
 
