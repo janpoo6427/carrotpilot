@@ -61,7 +61,7 @@ class Controls:
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
-    
+
     self.side_state = {
         "left":  {"main": {"dRel": None, "lat": None}, "sub": {"dRel": None, "lat": None}},
         "right": {"main": {"dRel": None, "lat": None}, "sub": {"dRel": None, "lat": None}},
@@ -154,8 +154,8 @@ class Controls:
     lat_smooth_seconds = self.params.get_float("LatSmoothSec") * 0.01
     steer_actuator_delay = self.params.get_float("SteerActuatorDelay") * 0.01
     if steer_actuator_delay == 0.0:
-      steer_actuator_delay = self.sm['liveDelay'].lateralDelay 
-    
+      steer_actuator_delay = self.sm['liveDelay'].lateralDelay
+
     def smooth_value(val, prev_val, tau):
       alpha = 1 - np.exp(-DT_CTRL / tau) if tau > 0 else 1
       return alpha * val + (1 - alpha) * prev_val
@@ -168,7 +168,7 @@ class Controls:
       else:
         curvature = get_lag_adjusted_curvature(self.CP, CS.vEgo, lat_plan.psis, lat_plan.curvatures, steer_actuator_delay + lat_smooth_seconds, lat_plan.distances)
         new_desired_curvature = smooth_value(curvature, self.desired_curvature, lat_smooth_seconds)
-    else:      
+    else:
       new_desired_curvature = smooth_value(model_v2.action.desiredCurvature, self.desired_curvature, 0.1)
 
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
@@ -243,6 +243,8 @@ class Controls:
     hudControl.leadVisible = self.sm['longitudinalPlan'].hasLead
     hudControl.leadDistanceBars = self.sm['selfdriveState'].personality.raw + 1
     hudControl.visualAlert = self.sm['selfdriveState'].alertHudVisual
+    hudControl.tFollow = float(self.sm['longitudinalPlan'].tFollow)
+
 
     radarState = self.sm['radarState']
     leadOne = radarState.leadOne
