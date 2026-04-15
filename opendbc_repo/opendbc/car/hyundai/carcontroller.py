@@ -304,17 +304,17 @@ class CarController(CarControllerBase):
       # 변화율 0.5°/tick → noise_factor 0.3 (토크 최소)
       noise_factor = float(np.clip(
         1.0 - (self.angle_rate_filtered / 0.5),
-        0.3, 1.0
+        0.5, 1.0
       ))
 
       # 고속 반응성 boost
       speed_rate_boost = float(np.interp(
         CS.out.vEgo,
         [0.0, 10.0, 16.7],
-        [1.0,  1.0,  2.5]
+        [1.5,  2.0,  2.5]
       ))
 
-      torque_rate_up   = 3.0 * speed_rate_boost
+      torque_rate_up   = 4.0 * speed_rate_boost
       torque_rate_down = 5.0
       target_torque    = speed_based_max * noise_factor
 
