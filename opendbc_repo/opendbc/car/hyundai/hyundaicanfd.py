@@ -127,7 +127,7 @@ def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, 
     if CS.lfa_alt is not None:
       values = copy.copy(CS.lfa_alt)
       rx_counter = values.pop("COUNTER", None)
-      if emergency_steering:      
+      if emergency_steering:
         pass
       else:
         #values = {} #CS.lfa_alt
@@ -164,7 +164,7 @@ def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, 
     values["HAS_LANE_SAFETY"] = 0
     values["LKA_ACTIVE"] = 0 # NEW_SIGNAL_1
 
-    values["DampingGain"] = 0 if lat_active else 100  
+    values["DampingGain"] = 0 if lat_active else 100
     #values["VALUE63"] = 0
 
     #values["VALUE82_SET256"] = 0
@@ -289,10 +289,10 @@ def create_lfahda_cluster(packer, CS, CAN, long_active, lat_active):
     rx_counter = values.pop("COUNTER", None)
   else:
     return []
-    values = {}
-    rx_counter = None
-    values["LFA_OptUsmSta"] = 2
-    values["HDA_OptUsmSta"] = 2
+    # values = {}
+    # rx_counter = None
+    # values["LFA_OptUsmSta"] = 2
+    # values["HDA_OptUsmSta"] = 2
   values["HDA_CntrlModSta"] = 2 if long_active else 0
   values["HDA_LFA_SymSta"] = 2 if lat_active else 0
   return [packer.make_can_msg("LFAHDA_CLUSTER", CAN.ECAN, values, rx_counter=rx_counter)]
@@ -329,7 +329,7 @@ def create_lfa_icon_non_camera_scc(packer, CS, CAN, CC):
   return ret
 
 def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, gas_override, set_speed, hud_control, hyundai_jerk, CS):
-  
+
   if CS.scc_control is None:
     return None
   enabled = (enabled or CS.softHoldActive > 0) and CS.paddle_button_prev == 0
@@ -340,7 +340,7 @@ def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, g
     acc_mode = 4 if enabled else 0
     enabled = False
     accel = accel_last = 0.5
-   
+
   elif hyundai_jerk.carrot_cruise == 2:
     accel = accel_last = hyundai_jerk.carrot_cruise_accel
 
@@ -398,7 +398,7 @@ def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, g
   # AccelLimitBandUpper, Lower
   values["SysFailState"] = 0    # 1: Performance degredation, 2: system temporairy unavailble, 3: SCC Service required , 눈이 묻어 레이더오류시... 2가 됨. 이때 가속을 안함...
 
-  values["AccelLimitBandUpper"] = 0.0   # 이값이 1.26일때 가속을 안하는 증상이 보임.. 
+  values["AccelLimitBandUpper"] = 0.0   # 이값이 1.26일때 가속을 안하는 증상이 보임..
   values["AccelLimitBandLower"] = 0.0
 
   values["ZEROS_7"] = 1
@@ -567,7 +567,7 @@ def alt_cruise_buttons(packer, CP, CAN, buttons, cruise_btns_msg, cnt):
   cruise_btns_msg["COUNTER"] = (cruise_btns_msg["COUNTER"] + 1 + cnt) % 256
   bus = CAN.ECAN if CP.flags & HyundaiFlags.CANFD_HDA2 else CAN.CAM
   return packer.make_can_msg("CRUISE_BUTTONS_ALT", bus, cruise_btns_msg)
-  
+
 def hkg_can_fd_checksum(address: int, sig, d: bytearray) -> int:
   crc = 0
   for i in range(2, len(d)):
@@ -700,7 +700,7 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         if  HDA_LFA_SymSta == 0 and 0 < frame % 200 < 12:
           values["LFA_BTN"] = 1
 
-        if CC.enabled:          
+        if CC.enabled:
           if not CS.MainMode_ACC:
             if 10 < frame % 200 <= 16 and CS.out.vEgo > 3.:
               values["ADAPTIVE_CRUISE_MAIN_BTN"] = 1
@@ -728,7 +728,7 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         nav_active = hud_control.activeCarrot > 1
 
         # hdpuse carrot
-        hdp_use = int(Params().get("HDPuse"))
+        hdp_use = Params().get_int("HDPuse")
         hdp_active = False
         if hdp_use == 1:
           hdp_active = cruise_enabled and nav_active
@@ -741,7 +741,7 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         values["SETSPEED"] = (6 if hdp_active else 3 if cruise_enabled else 1) if main_enabled else 0
         values["SETSPEED_HUD"] = (5 if hdp_active else 3 if cruise_enabled else 1) if main_enabled else 0
 
-        set_speed_in_units = hud_control.setSpeed * (CV.MS_TO_KPH if CS.is_metric else CV.MS_TO_MPH)
+        set_speed_in_units = hud_control.setSpeed * (CV.MS_TO_KPH if CS.is_metric else CV.MS_TO_MPH) if cruise_enabled else set_speed_in_units
         values["vSetDis"] = int(set_speed_in_units + 0.5)
 
         values["DISTANCE"] = 4 if hdp_active else hud_control.leadDistanceBars
@@ -749,8 +749,8 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         values["DISTANCE_CAR"] = 3 if hdp_active else 2 if cruise_enabled else 1 if main_enabled else 0
         values["DISTANCE_SPACING"] = 5 if hdp_active else 1 if cruise_enabled else 0
 
-        values["TARGET"] = 1 if main_enabled else 0
-        values["TARGET_DISTANCE"] = int(hud_control.leadDistance)
+        values["TARGET"] = 1 if cruise_enabled else 0
+        values["TARGET_DISTANCE"] = int(hud_control.targetDistance)
 
         values["BACKGROUND"] = 6 if CS.paddle_button_prev > 0 else 1 if cruise_enabled else 3 if lat_active else 7
         values["CENTERLINE"] = 1 if HDA_CntrlModSta > 0 else 0
@@ -811,8 +811,11 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         values["LCA_LEFT_ARROW"] = 2 if CS.out.leftBlinker else 0
         values["LCA_RIGHT_ARROW"] = 2 if CS.out.rightBlinker else 0
 
-        values["LCA_LEFT_ICON"] = 1 if CS.out.leftBlindspot else 2
-        values["LCA_RIGHT_ICON"] = 1 if CS.out.rightBlindspot else 2
+        lca_left_available = md is not None and md.meta.laneChangeAvailableLeft
+        lca_right_available = md is not None and md.meta.laneChangeAvailableRight
+
+        values["LCA_LEFT_ICON"] = (1 if CS.out.leftBlindspot else 2) if lca_left_available else 0
+        values["LCA_RIGHT_ICON"] = (1 if CS.out.rightBlindspot else 2) if lca_right_available else 0
 
         values["LANE_LEFT"] = 1 if desire in (1, 3) else 0
         values["LANE_RIGHT"] = 1 if desire in (2, 4) else 0

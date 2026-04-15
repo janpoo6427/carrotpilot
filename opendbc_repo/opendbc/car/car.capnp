@@ -244,7 +244,7 @@ struct CarState {
   pcmCruiseGap @63 :Int16;      #0: can't read, 1,2,3,4: gap setting
   speedLimit @64 :Float32;
   speedLimitDistance @65 :Float32;
-  gearStep @66 :Int16;          
+  gearStep @66 :Int16;
   tpms @67 : Tpms;
   useLaneLineSpeed @68 : Float32;
   leftLatDist @69 : Float32;  # distance to left lane line
@@ -450,6 +450,8 @@ struct CarControl {
     leadRadar @15: Int16;
     modelDesire @16: Int16;
     atcDistance @17: Float32;
+    targetDistance @18 :Float32;
+
 
     # not used with the dash, TODO: separate structs for dash UI and device UI
     audibleAlert @5: AudibleAlert;

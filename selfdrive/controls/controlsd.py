@@ -61,7 +61,7 @@ class Controls:
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
-    
+
     self.side_state = {
         "left":  {"main": {"dRel": None, "lat": None}, "sub": {"dRel": None, "lat": None}},
         "right": {"main": {"dRel": None, "lat": None}, "sub": {"dRel": None, "lat": None}},
@@ -154,8 +154,8 @@ class Controls:
     lat_smooth_seconds = self.params.get_float("LatSmoothSec") * 0.01
     steer_actuator_delay = self.params.get_float("SteerActuatorDelay") * 0.01
     if steer_actuator_delay == 0.0:
-      steer_actuator_delay = self.sm['liveDelay'].lateralDelay 
-    
+      steer_actuator_delay = self.sm['liveDelay'].lateralDelay
+
     def smooth_value(val, prev_val, tau):
       alpha = 1 - np.exp(-DT_CTRL / tau) if tau > 0 else 1
       return alpha * val + (1 - alpha) * prev_val
@@ -168,7 +168,7 @@ class Controls:
       else:
         curvature = get_lag_adjusted_curvature(self.CP, CS.vEgo, lat_plan.psis, lat_plan.curvatures, steer_actuator_delay + lat_smooth_seconds, lat_plan.distances)
         new_desired_curvature = smooth_value(curvature, self.desired_curvature, lat_smooth_seconds)
-    else:      
+    else:
       new_desired_curvature = smooth_value(model_v2.action.desiredCurvature, self.desired_curvature, 0.1)
 
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
@@ -194,6 +194,7 @@ class Controls:
 
   def publish(self, CC, lac_log):
     CS = self.sm['carState']
+    lp = self.sm['longitudinalPlan']
 
     # Orientation and angle rates can be useful for carcontroller
     # Only calibrated (car) frame is relevant for the carcontroller
@@ -214,7 +215,7 @@ class Controls:
 
     desired_kph = min(CS.vCruiseCluster, self.sm['carrotMan'].desiredSpeed)
     setSpeed = float(desired_kph * CV.KPH_TO_MS)
-    speeds = self.sm['longitudinalPlan'].speeds
+    speeds = lp.speeds
     if len(speeds):
       CC.cruiseControl.resume = CC.enabled and CS.cruiseState.standstill and speeds[-1] > 0.1
       vCluRatio = CS.vCluRatio if CS.vCluRatio > 0.5 else 1.0
@@ -225,7 +226,6 @@ class Controls:
     hudControl.activeCarrot = self.sm['carrotMan'].activeCarrot
     hudControl.atcDistance = self.sm['carrotMan'].xDistToTurn
 
-    lp = self.sm['longitudinalPlan']
     if self.CP.pcmCruise:
       speed_from_pcm = self.params.get_int("SpeedFromPCM")
       if speed_from_pcm == 1: #toyota
@@ -240,12 +240,14 @@ class Controls:
       hudControl.setSpeed = setSpeed if lp.xState == 3 else float(desired_kph * CV.KPH_TO_MS)
     hudControl.speedVisible = CC.enabled
     hudControl.lanesVisible = CC.enabled
-    hudControl.leadVisible = self.sm['longitudinalPlan'].hasLead
     hudControl.leadDistanceBars = self.sm['selfdriveState'].personality.raw + 1
     hudControl.visualAlert = self.sm['selfdriveState'].alertHudVisual
+    hudControl.targetDistance = float(CS.vEgo * (lp.tFollow if lp.tFollow > 0.0 else 1.45) + 10.0)
 
     radarState = self.sm['radarState']
     leadOne = radarState.leadOne
+
+    hudControl.leadVisible = leadOne.status or leadOne.modelProb > 0.5
     hudControl.leadDistance = leadOne.dRel if leadOne.status else 0
     hudControl.leadRelSpeed = leadOne.vRel if leadOne.status else 0
     hudControl.leadRadar = 1 if leadOne.radar else 0
