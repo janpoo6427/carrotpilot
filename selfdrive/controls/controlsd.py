@@ -243,7 +243,12 @@ class Controls:
     hudControl.leadVisible = self.sm['longitudinalPlan'].hasLead
     hudControl.leadDistanceBars = self.sm['selfdriveState'].personality.raw + 1
     hudControl.visualAlert = self.sm['selfdriveState'].alertHudVisual 
-    hudControl.targetDistance = float(CS.vEgo * (lp.tFollow if lp.tFollow > 0.0 else 1.45) + 6.0)
+      
+    t_follow = lp.tFollow if lp.tFollow > 0.0 else 1.45
+    base = CS.vEgo * t_follow + 6.0
+    delta = float(lp.desiredDistance) - base  # MPC와의 차이
+     # delta의 일부만 반영 (0.0~1.0 사이로 비율 조정)
+    hudControl.targetDistance = float(base + delta * 0.5)
 
     radarState = self.sm['radarState']
     leadOne = radarState.leadOne
