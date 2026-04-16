@@ -243,7 +243,7 @@ class Controls:
     hudControl.leadVisible = self.sm['longitudinalPlan'].hasLead
     hudControl.leadDistanceBars = self.sm['selfdriveState'].personality.raw + 1
     hudControl.visualAlert = self.sm['selfdriveState'].alertHudVisual   
-    hudControl.targetDistance = float(CS.vEgo * (lp.tFollow if lp.tFollow > 0.0 else 1.45) + 6.0)
+    hudControl.targetDistance = float(CS.vEgo * (lp.tFollow if lp.tFollow > 0.0 else 1.45) + 10.0)
 
     radarState = self.sm['radarState']
     leadOne = radarState.leadOne
