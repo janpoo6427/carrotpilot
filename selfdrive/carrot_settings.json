@@ -1109,17 +1109,17 @@
       "group": "시작",
       "name": "AutoEngage",
       "title": "오토인게이지",
-      "descr": "1: 조향만\n 2: 조향 ON + 크루즈 대기상태",
+      "descr": "1: 조향만\n2: 조향 ON + 크루즈 대기상태\n3: 조향 ON + 크루즈 대기(브레이크 복귀X, 악셀 복귀)",
       "egroup": "START",
       "etitle": "Auto Engage on onroad",
-      "edescr": "1: Steering Only, 2: Steering ON + Cruise Standby",
+      "edescr": "1: Steering Only\n2: Steering ON + Cruise Standby\n3: Steering ON + Cruise Standby (no brake resume, accel resume)",
       "min": 0,
-      "max": 2,
+      "max": 3,
       "default": 0,
       "unit": 1,
       "cgroup": "启动设置",
       "ctitle": "上路自动激活",
-      "cdescr": "1: 仅转向, 2: 转向开启 + 巡航待机"
+      "cdescr": "1: 仅转向\n2: 转向开启 + 巡航待机\n3: 转向开启 + 巡航待机（刹车不恢复，油门恢复）"
     },
     {
       "group": "시작",

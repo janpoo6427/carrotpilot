@@ -86,7 +86,7 @@ class CanBus(CanBusBase):
 
 
 
-def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, apply_steer, CS, apply_angle, max_torque, angle_control):
+def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, apply_steer_req, apply_steer, CS, apply_angle, max_torque, angle_control):
 
   emergency_steering = False
   if CS.adrv_0x161 is not None:
@@ -127,7 +127,7 @@ def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, 
     if CS.lfa_alt is not None:
       values = copy.copy(CS.lfa_alt)
       rx_counter = values.pop("COUNTER", None)
-      if emergency_steering:      
+      if emergency_steering:
         pass
       else:
         #values = {} #CS.lfa_alt
@@ -157,14 +157,14 @@ def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, 
   else:
     values = {}
     values["LKA_MODE"] = 2
-    values["LKA_ICON"] = 2 if lat_active else 1
+    values["LKA_ICON"] = 2 if CC.latActive else 1
     values["TORQUE_REQUEST"] = apply_steer
-    values["STEER_REQ"] = 1 if lat_active else 0
+    values["STEER_REQ"] = 1 if apply_steer_req else 0
     values["VALUE64"] = 0  # STEER_MODE, NEW_SIGNAL_2
     values["HAS_LANE_SAFETY"] = 0
     values["LKA_ACTIVE"] = 0 # NEW_SIGNAL_1
 
-    values["DampingGain"] = 0 if lat_active else 100  
+    values["DampingGain"] = 0 if apply_steer_req else 100
     #values["VALUE63"] = 0
 
     #values["VALUE82_SET256"] = 0
@@ -173,13 +173,13 @@ def create_steering_messages_camera_scc(frame, packer, CP, CAN, CC, lat_active, 
 
   return ret
 
-def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_steer, apply_angle, max_torque, angle_control):
+def create_steering_messages(packer, CP, CAN, lat_enabled, lat_active, apply_steer, apply_angle, max_torque, angle_control):
 
   ret = []
   if angle_control:
     values = {
       "LKA_MODE": 0,
-      "LKA_ICON": 2 if enabled else 1,
+      "LKA_ICON": 2 if lat_active else 1 if lat_enabled else 0,
       "TORQUE_REQUEST": 0,  # apply_steer,
       "VALUE63": 0, # LKA_ASSIST
       "STEER_REQ": 0,  # 1 if lat_active else 0,
@@ -201,7 +201,7 @@ def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_steer, 
   else:
     values = {
       "LKA_MODE": 2,
-      "LKA_ICON": 2 if enabled else 1,
+      "LKA_ICON": 2 if lat_active else 1 if lat_enabled else 0,
       "TORQUE_REQUEST": apply_steer,
       "DampingGain": 100, #3 if enabled else 100,
       "STEER_REQ": 1 if lat_active else 0,
@@ -304,7 +304,7 @@ def create_lfa_icon_non_camera_scc(packer, CS, CAN, CC):
     rx_counter = values.pop("COUNTER", None)
 
     lat_active = CC.latActive
-    lat_enabled = CS.out.latEnabled
+    lat_enabled = CC.latEnabled
 
     values["LFA_ICON"] = 2 if lat_active else 1 if lat_enabled else 0
     values["LKA_ICON"] = 4 if lat_active else 3 if lat_enabled else 0
@@ -329,7 +329,7 @@ def create_lfa_icon_non_camera_scc(packer, CS, CAN, CC):
   return ret
 
 def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, gas_override, set_speed, hud_control, hyundai_jerk, CS):
-  
+
   if CS.scc_control is None:
     return None
   enabled = (enabled or CS.softHoldActive > 0) and CS.paddle_button_prev == 0
@@ -340,7 +340,7 @@ def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, g
     acc_mode = 4 if enabled else 0
     enabled = False
     accel = accel_last = 0.5
-   
+
   elif hyundai_jerk.carrot_cruise == 2:
     accel = accel_last = hyundai_jerk.carrot_cruise_accel
 
@@ -384,8 +384,7 @@ def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, g
   values["HUD_LEAD_INFO"] = hud_lead_info  #1: in-path object detected(uncontrollable), 2: controllable long, 3: controllable long & lat, ... reserved
 
   values["DriverAlert"] = 0   # 1: SCC Disengaged, 2: No SCC Engage condition, 3: SCC Disenganed when the vehicle stops
-
-  values["TARGET_DISTANCE"] = CS.out.vEgo * 1.0 + 4.0
+  values["TARGET_DISTANCE"] = int(hud_control.targetDistance) if hud_control.targetDistance > 0 else int(CS.out.vEgo * 1.45 + 6.0)
 
   soft_hold_info = 1 if CS.softHoldActive > 1 and enabled else 0
 
@@ -398,7 +397,7 @@ def create_acc_control_scc2(packer, CAN, enabled, accel_last, accel, stopping, g
   # AccelLimitBandUpper, Lower
   values["SysFailState"] = 0    # 1: Performance degredation, 2: system temporairy unavailble, 3: SCC Service required , 눈이 묻어 레이더오류시... 2가 됨. 이때 가속을 안함...
 
-  values["AccelLimitBandUpper"] = 0.0   # 이값이 1.26일때 가속을 안하는 증상이 보임.. 
+  values["AccelLimitBandUpper"] = 0.0   # 이값이 1.26일때 가속을 안하는 증상이 보임..
   values["AccelLimitBandLower"] = 0.0
 
   values["ZEROS_7"] = 1
@@ -567,7 +566,7 @@ def alt_cruise_buttons(packer, CP, CAN, buttons, cruise_btns_msg, cnt):
   cruise_btns_msg["COUNTER"] = (cruise_btns_msg["COUNTER"] + 1 + cnt) % 256
   bus = CAN.ECAN if CP.flags & HyundaiFlags.CANFD_HDA2 else CAN.CAM
   return packer.make_can_msg("CRUISE_BUTTONS_ALT", bus, cruise_btns_msg)
-  
+
 def hkg_can_fd_checksum(address: int, sig, d: bytearray) -> int:
   crc = 0
   for i in range(2, len(d)):
@@ -676,6 +675,8 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
                          enable_corner_radar, stopping, canfd_debug):
   ret = []
 
+  auto_main_allowed = CS.auto_engage_mode == 2 and not CS.manual_main_off_latched
+
   md = CS.MD
   if not hasattr(create_ccnc_messages, '_lane_line_check') or frame % 100 == 0:
     create_ccnc_messages._lane_line_check = Params().get_int("LaneLineCheck")
@@ -700,7 +701,7 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         if  HDA_LFA_SymSta == 0 and 0 < frame % 200 < 12:
           values["LFA_BTN"] = 1
 
-        if CC.enabled:          
+        if CC.enabled and auto_main_allowed:
           if not CS.MainMode_ACC:
             if 10 < frame % 200 <= 16 and CS.out.vEgo > 3.:
               values["ADAPTIVE_CRUISE_MAIN_BTN"] = 1
@@ -711,9 +712,10 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
             if 10 < frame % 30 <= 16 and not stopping:
               values["CRUISE_BUTTONS"] = 2
           else:
-            if CS.adrv_0x1ea is not None and CS.adrv_0x1ea["HDA_MODE2"] == 0: # if corner radar is disabled, send main btn
+            if CS.adrv_0x1ea is not None and CS.adrv_0x1ea["HDA_MODE2"] == 0:
               if 10 < frame % 1000 <= 16 and CS.out.vEgo > 3:
                 values["ADAPTIVE_CRUISE_MAIN_BTN"] = 1
+
 
         ret.append(packer.make_can_msg(CS.cruise_btns_msg_canfd, CAN.CAM, values))
 
@@ -724,11 +726,11 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
       if CS.adrv_0x161 is not None:
         main_enabled = CS.out.cruiseState.available
         cruise_enabled = CC.enabled
-        lat_enabled = CS.out.latEnabled
+        lat_enabled = CC.latEnabled
         nav_active = hud_control.activeCarrot > 1
 
         # hdpuse carrot
-        hdp_use = int(Params().get("HDPuse"))
+        hdp_use = Params().get_int("HDPuse")
         hdp_active = False
         if hdp_use == 1:
           hdp_active = cruise_enabled and nav_active
@@ -746,17 +748,18 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
 
         values["DISTANCE"] = 4 if hdp_active else hud_control.leadDistanceBars
         values["DISTANCE_LEAD"] = 2 if cruise_enabled and hud_control.leadVisible else 1 if main_enabled and hud_control.leadVisible else 0
-        values["DISTANCE_CAR"] = 3 if hdp_active else 2 if cruise_enabled else 1 if main_enabled else 0
+        values["DISTANCE_CAR"] = 3 if hdp_active else 2 if cruise_enabled and hud_control.leadVisible else 1 if main_enabled else 0
         values["DISTANCE_SPACING"] = 5 if hdp_active else 1 if cruise_enabled else 0
 
-        values["TARGET"] = 1 if main_enabled else 0
-        values["TARGET_DISTANCE"] = int(hud_control.leadDistance)
+        values["TARGET"] = 1 if main_enabled and hud_control.leadVisible else 0
+        values["TARGET_DISTANCE"] = hud_control.targetDistance if cruise_enabled else 0
+
 
         values["BACKGROUND"] = 6 if CS.paddle_button_prev > 0 else 1 if cruise_enabled else 3 if lat_active else 7
         values["CENTERLINE"] = 1 if HDA_CntrlModSta > 0 else 0
         values["CAR_CIRCLE"] = 2 if hdp_active else 1 if cruise_enabled else 0
 
-        values["NAV_ICON"] = 2 if nav_active else 0
+        values["NAV_ICON"] = 2 if nav_active else 1 if main_enabled  else 0
         values["HDA_ICON"] = 5 if hdp_active else 2 if cruise_enabled else 1 if main_enabled else 0
         values["LFA_ICON"] = 5 if hdp_active else 2 if lat_active else 1 if lat_enabled else 0
         values["LKA_ICON"] = 4 if lat_active else 3 if lat_enabled else 0
@@ -811,8 +814,24 @@ def create_ccnc_messages(CP, packer, CAN, frame, CC, CS, hud_control,
         values["LCA_LEFT_ARROW"] = 2 if CS.out.leftBlinker else 0
         values["LCA_RIGHT_ARROW"] = 2 if CS.out.rightBlinker else 0
 
-        values["LCA_LEFT_ICON"] = 1 if CS.out.leftBlindspot else 2
-        values["LCA_RIGHT_ICON"] = 1 if CS.out.rightBlindspot else 2
+        lca_left_available = md is not None and md.meta.laneChangeAvailableLeft
+        lca_right_available = md is not None and md.meta.laneChangeAvailableRight
+
+        if not lat_enabled:
+          values["LCA_LEFT_ICON"] = 0
+          values["LCA_RIGHT_ICON"] = 0
+        elif not lat_active:
+          values["LCA_LEFT_ICON"] = 3
+          values["LCA_RIGHT_ICON"] = 3
+        else:
+          if lca_left_available and not lane_line_warn_left:
+            values["LCA_LEFT_ICON"] = 1 if CS.out.leftBlindspot else 2
+          else:
+            values["LCA_LEFT_ICON"] = 4
+          if lca_right_available and not lane_line_warn_right:
+            values["LCA_RIGHT_ICON"] = 1 if CS.out.rightBlindspot else 2
+          else:
+            values["LCA_RIGHT_ICON"] = 4
 
         values["LANE_LEFT"] = 1 if desire in (1, 3) else 0
         values["LANE_RIGHT"] = 1 if desire in (2, 4) else 0
