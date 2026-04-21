@@ -244,7 +244,7 @@ struct CarState {
   pcmCruiseGap @63 :Int16;      #0: can't read, 1,2,3,4: gap setting
   speedLimit @64 :Float32;
   speedLimitDistance @65 :Float32;
-  gearStep @66 :Int16;          
+  gearStep @66 :Int16;
   tpms @67 : Tpms;
   useLaneLineSpeed @68 : Float32;
   leftLatDist @69 : Float32;  # distance to left lane line
@@ -255,6 +255,8 @@ struct CarState {
   leftLaneLine @74 : Int16; # -1: no lane, 0: dashed, 1: solid, +10: white, +20: yellow, ex) 21: solid yellow
   rightLaneLine @75 : Int16; # -1: no lane, 0: dashed, 1: solid, +10: white, +20: yellow, ex) 21: solid yellow
   datetime @76 :UInt64; # timestamp in milliseconds since epoch
+  latOverride @77 :UInt8; # 0:AUTO, 1:FORCE_ON, 2:FORCE_OFF
+
 
   struct Tpms {
     fl @0 :Float32;
@@ -392,6 +394,7 @@ struct CarControl {
   orientationNED @13 :List(Float32);
   angularVelocity @14 :List(Float32);
   currentCurvature @17 :Float32;  # From vehicle model
+  latEnabled @18 :Bool;
 
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
@@ -450,6 +453,7 @@ struct CarControl {
     leadRadar @15: Int16;
     modelDesire @16: Int16;
     atcDistance @17: Float32;
+    targetDistance @18: Float32;
 
     # not used with the dash, TODO: separate structs for dash UI and device UI
     audibleAlert @5: AudibleAlert;
