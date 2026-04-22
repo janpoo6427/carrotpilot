@@ -721,7 +721,7 @@ class VCruiseCarrot:
 
     if self._gas_tok and self.v_ego_kph_set >= self.autoGasTokSpeed:
       if not CC.enabled:
-        self._cruise_cancel_state = False
+        #self._cruise_cancel_state = False
         self._cruise_control(1, -1, "Cruise on (gas tok)")
         if self.v_ego_kph_set > v_cruise_kph:
           v_cruise_kph = self.v_ego_kph_set
