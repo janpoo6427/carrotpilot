@@ -28,6 +28,13 @@ CORNER_OBJECT_180_MSG_COUNT = 5
 CORNER_OBJECT_180_SLOTS_PER_MSG = 2
 CORNER_OBJECT_180_TRACK_ID_OFFSET = 240
 CORNER_OBJECT_180_DBC = 'hyundai_canfd_corner_radar_180_generated'
+CORNER_OBJECT_430_LEFT_START_ADDR = 0x430
+CORNER_OBJECT_430_RIGHT_START_ADDR = 0x440
+CORNER_OBJECT_430_MSG_COUNT_PER_SIDE = 8
+CORNER_OBJECT_430_SLOTS_PER_MSG = 7
+CORNER_OBJECT_430_TRACK_ID_OFFSET = 300
+CORNER_OBJECT_430_DBC = 'hyundai_canfd_corner_radar_430_generated'
+CORNER_OBJECT_430_EMPTY_RAW_VALUES = (0x010d1f40, 0x00010d1f)
 
 # POC for parsing corner radars: https://github.com/commaai/openpilot/pull/24221/
 
@@ -74,6 +81,20 @@ def get_corner_object_180_can_parser(CP, enabled):
   messages = [(f"CORNER_RADAR_180_OBJECTS_{addr:x}", 33) for addr in range(CORNER_OBJECT_180_START_ADDR, CORNER_OBJECT_180_START_ADDR + CORNER_OBJECT_180_MSG_COUNT)]
   return CANParser(CORNER_OBJECT_180_DBC, messages, CAN.ACAN)
 
+def get_corner_object_430_can_parser(CP, enabled):
+  if not enabled or not (CP.flags & HyundaiFlags.CANFD):
+    return None
+
+  dbc_path = os.path.join(DBC_PATH, f"{CORNER_OBJECT_430_DBC}.dbc")
+  if not os.path.exists(dbc_path):
+    print(f"RadarInterface: missing {CORNER_OBJECT_430_DBC}.dbc, 0x430/0x440 corner radar disabled")
+    return None
+
+  CAN = CanBus(CP)
+  messages = [(f"CORNER_RADAR_430_OBJECTS_{addr:x}", 33) for addr in range(CORNER_OBJECT_430_LEFT_START_ADDR, CORNER_OBJECT_430_LEFT_START_ADDR + CORNER_OBJECT_430_MSG_COUNT_PER_SIDE)]
+  messages += [(f"CORNER_RADAR_430_OBJECTS_{addr:x}", 33) for addr in range(CORNER_OBJECT_430_RIGHT_START_ADDR, CORNER_OBJECT_430_RIGHT_START_ADDR + CORNER_OBJECT_430_MSG_COUNT_PER_SIDE)]
+  return CANParser(CORNER_OBJECT_430_DBC, messages, CAN.ACAN)
+
 def get_radar_can_parser_scc(CP):
   CAN = CanBus(CP)
   if CP.flags & HyundaiFlags.CANFD:
@@ -114,29 +135,35 @@ class RadarInterface(RadarInterfaceBase):
     self.radar_tracks = self.params.get_int("EnableRadarTracks") >= 1
     self.corner_object_tracks = bool(CP.extFlags & HyundaiExtFlags.CORNER_RADAR_OBJECTS_235.value) and self.params.get_int("EnableCornerRadar") > 0
     self.corner_object_180_tracks = bool(CP.extFlags & HyundaiExtFlags.CORNER_RADAR_OBJECTS_180.value) and self.params.get_int("EnableCornerRadar") > 0
+    self.corner_object_430_tracks = bool(CP.extFlags & HyundaiExtFlags.CORNER_RADAR_OBJECTS_430.value) and self.params.get_int("EnableCornerRadar") > 0
     self.updated_tracks = set()
     self.updated_scc = set()
     self.updated_corner_objects = set()
     self.updated_corner_objects_180 = set()
+    self.updated_corner_objects_430 = set()
     self.corner_object_missed_updates = 0
     self.corner_object_180_missed_updates = 0
+    self.corner_object_430_missed_updates = 0
     self.rcp_tracks = get_radar_can_parser(CP, self.radar_tracks, self.radar_start_addr, self.radar_msg_count)
     self.rcp_corner_objects = get_corner_object_can_parser(CP, self.corner_object_tracks)
     self.rcp_corner_objects_180 = get_corner_object_180_can_parser(CP, self.corner_object_180_tracks)
+    self.rcp_corner_objects_430 = get_corner_object_430_can_parser(CP, self.corner_object_430_tracks)
     self.rcp_scc = get_radar_can_parser_scc(CP)
     self.trigger_msg_scc = 416 if self.canfd else 0x420
 
     self.trigger_msg_tracks = self.radar_start_addr + self.radar_msg_count - 1
     self.trigger_msg_corner_objects = CORNER_OBJECT_235_START_ADDR + CORNER_OBJECT_235_MSG_COUNT - 1
     self.trigger_msg_corner_objects_180 = CORNER_OBJECT_180_START_ADDR + CORNER_OBJECT_180_MSG_COUNT - 1
+    self.trigger_msg_corner_objects_430 = CORNER_OBJECT_430_RIGHT_START_ADDR + CORNER_OBJECT_430_MSG_COUNT_PER_SIDE - 1
     self.track_id = 0
 
-    self.corner_objects_available = self.rcp_corner_objects is not None or self.rcp_corner_objects_180 is not None
+    self.corner_objects_available = self.rcp_corner_objects is not None or self.rcp_corner_objects_180 is not None or self.rcp_corner_objects_430 is not None
     self.radar_off_can = CP.radarUnavailable and not self.corner_objects_available
     print(
       "RadarInterface: "
       f"radarUnavailable={CP.radarUnavailable} radarTracks={self.radar_tracks} "
       f"corner235={self.rcp_corner_objects is not None} corner180={self.rcp_corner_objects_180 is not None} "
+      f"corner430={self.rcp_corner_objects_430 is not None} "
       f"radarOffCan={self.radar_off_can}"
     )
 
@@ -163,13 +190,18 @@ class RadarInterface(RadarInterfaceBase):
       self.pts[t_id] = structs.RadarData.RadarPoint()
       self.pts[t_id].measured = False
       self.pts[t_id].trackId = t_id
+    for slot in range(CORNER_OBJECT_430_MSG_COUNT_PER_SIDE * 2 * CORNER_OBJECT_430_SLOTS_PER_MSG):
+      t_id = CORNER_OBJECT_430_TRACK_ID_OFFSET + slot
+      self.pts[t_id] = structs.RadarData.RadarPoint()
+      self.pts[t_id].measured = False
+      self.pts[t_id].trackId = t_id
 
     self.frame = 0
 
 
   def update(self, can_strings):
     self.frame += 1
-    if self.radar_off_can or (self.rcp_tracks is None and self.rcp_scc is None and self.rcp_corner_objects is None and self.rcp_corner_objects_180 is None):
+    if self.radar_off_can or (self.rcp_tracks is None and self.rcp_scc is None and self.rcp_corner_objects is None and self.rcp_corner_objects_180 is None and self.rcp_corner_objects_430 is None):
       return super().update(None)
 
     if self.rcp_scc is not None:
@@ -194,8 +226,14 @@ class RadarInterface(RadarInterfaceBase):
       self.updated_corner_objects_180.update(vls_180)
       corner_180_ready = self.trigger_msg_corner_objects_180 in self.updated_corner_objects_180
 
+    corner_430_ready = False
+    if self.rcp_corner_objects_430 is not None:
+      vls_430 = self.rcp_corner_objects_430.update(can_strings)
+      self.updated_corner_objects_430.update(vls_430)
+      corner_430_ready = self.trigger_msg_corner_objects_430 in self.updated_corner_objects_430
+
     scc_ready = not self.radar_tracks and self.frame % 5 == 0 and self.rcp_scc is not None
-    if track_ready or corner_ready or corner_180_ready or scc_ready:
+    if track_ready or corner_ready or corner_180_ready or corner_430_ready or scc_ready:
       if track_ready:
         self._update(self.updated_tracks)
         self.updated_tracks.clear()
@@ -218,15 +256,25 @@ class RadarInterface(RadarInterfaceBase):
           self.corner_object_180_missed_updates += 1
           if self.corner_object_180_missed_updates > 10:
             self._clear_corner_objects_180()
+      if self.rcp_corner_objects_430 is not None:
+        if self.updated_corner_objects_430:
+          self._update_corner_objects_430(self.updated_corner_objects_430)
+          self.corner_object_430_missed_updates = 0
+        else:
+          self.corner_object_430_missed_updates += 1
+          if self.corner_object_430_missed_updates > 10:
+            self._clear_corner_objects_430()
       self.updated_scc.clear()
       self.updated_corner_objects.clear()
       self.updated_corner_objects_180.clear()
+      self.updated_corner_objects_430.clear()
 
       ret = structs.RadarData()
       if ((self.rcp_tracks is not None and self.radar_tracks and not self.rcp_tracks.can_valid) or
           (self.rcp_scc is not None and not self.corner_objects_available and not self.rcp_scc.can_valid) or
           (self.rcp_corner_objects is not None and not self.rcp_corner_objects.can_valid) or
-          (self.rcp_corner_objects_180 is not None and not self.rcp_corner_objects_180.can_valid)):
+          (self.rcp_corner_objects_180 is not None and not self.rcp_corner_objects_180.can_valid) or
+          (self.rcp_corner_objects_430 is not None and not self.rcp_corner_objects_430.can_valid)):
         ret.errors.canError = True
       ret.points = list(self.pts.values())
       return ret
@@ -378,6 +426,50 @@ class RadarInterface(RadarInterfaceBase):
         self.pts[t_id].aRel = a_rel
         self.pts[t_id].yvRel = yv_rel
 
+  def _update_corner_objects_430(self, updated_messages):
+    if self.rcp_corner_objects_430 is None:
+      return
+
+    if not updated_messages:
+      self._clear_corner_objects_430()
+      return
+
+    bank_defs = (
+      (CORNER_OBJECT_430_LEFT_START_ADDR, -3.2, 0),
+      (CORNER_OBJECT_430_RIGHT_START_ADDR, 3.2, CORNER_OBJECT_430_MSG_COUNT_PER_SIDE * CORNER_OBJECT_430_SLOTS_PER_MSG),
+    )
+    for start_addr, y_rel, track_base in bank_defs:
+      for msg_index, addr in enumerate(range(start_addr, start_addr + CORNER_OBJECT_430_MSG_COUNT_PER_SIDE)):
+        msg = self.rcp_corner_objects_430.vl[f"CORNER_RADAR_430_OBJECTS_{addr:x}"]
+        for slot_index in range(CORNER_OBJECT_430_SLOTS_PER_MSG):
+          prefix = f"SLOT{slot_index + 1}_"
+          t_id = CORNER_OBJECT_430_TRACK_ID_OFFSET + track_base + msg_index * CORNER_OBJECT_430_SLOTS_PER_MSG + slot_index
+          distance_raw = int(msg[f"{prefix}DISTANCE_RAW"])
+          raw = (
+            distance_raw |
+            (int(msg[f"{prefix}META_13_15"]) << 13) |
+            (int(msg[f"{prefix}META_BYTE_2"]) << 16) |
+            (int(msg[f"{prefix}META_BYTE_3"]) << 24)
+          )
+          d_rel = distance_raw * 0.05
+          valid = (
+            raw not in CORNER_OBJECT_430_EMPTY_RAW_VALUES and
+            distance_raw not in (0, 8000, 8191) and
+            0.2 < d_rel < 180.0
+          )
+
+          self.pts[t_id].measured = bool(valid)
+          if not valid:
+            self._clear_point(t_id)
+            continue
+
+          self.pts[t_id].dRel = d_rel
+          self.pts[t_id].yRel = y_rel
+          self.pts[t_id].vRel = 0.0
+          self.pts[t_id].vLead = self.v_ego
+          self.pts[t_id].aRel = float('nan')
+          self.pts[t_id].yvRel = 0.0
+
   def _clear_point(self, t_id):
     self.pts[t_id].measured = False
     self.pts[t_id].dRel = 0
@@ -394,6 +486,10 @@ class RadarInterface(RadarInterfaceBase):
   def _clear_corner_objects_180(self):
     for slot in range(CORNER_OBJECT_180_MSG_COUNT * CORNER_OBJECT_180_SLOTS_PER_MSG):
       self._clear_point(CORNER_OBJECT_180_TRACK_ID_OFFSET + slot)
+
+  def _clear_corner_objects_430(self):
+    for slot in range(CORNER_OBJECT_430_MSG_COUNT_PER_SIDE * 2 * CORNER_OBJECT_430_SLOTS_PER_MSG):
+      self._clear_point(CORNER_OBJECT_430_TRACK_ID_OFFSET + slot)
 
   def _update_scc(self, updated_messages):
     cpt = self.rcp_scc.vl

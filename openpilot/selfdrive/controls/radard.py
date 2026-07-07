@@ -75,6 +75,8 @@ CORNER_235_TRACK_ID_START = 200
 CORNER_235_TRACK_ID_END = 220
 CORNER_180_TRACK_ID_START = 240
 CORNER_180_TRACK_ID_END = 250
+CORNER_430_TRACK_ID_START = 300
+CORNER_430_TRACK_ID_END = 412
 
 CORNER_FRONT_MATCH_DREL = 3.0
 CORNER_FRONT_MATCH_VREL = 2.0
@@ -623,7 +625,7 @@ class RadarD:
       md = sm['modelV2']
 
       alive_tracks = {tid: trk for tid, trk in self.tracks.items() if trk.measured and trk.cnt > 2 }
-      front_tracks = {tid: trk for tid, trk in alive_tracks.items() if not self._is_corner_track(trk)}
+      front_tracks = {tid: trk for tid, trk in alive_tracks.items() if not self._is_corner_track(trk) and not self._is_corner_430_track(trk)}
       corner_tracks = {tid: trk for tid, trk in alive_tracks.items() if self._is_corner_track(trk)}
       self.corner_tracks_available = any(self._is_corner_track(trk) for trk in alive_tracks.values())
 
@@ -652,6 +654,11 @@ class RadarD:
       CORNER_235_TRACK_ID_START <= t.identifier < CORNER_235_TRACK_ID_END or
       CORNER_180_TRACK_ID_START <= t.identifier < CORNER_180_TRACK_ID_END
     )
+
+  def _is_corner_430_track(self, t: Track) -> bool:
+    # The IONIQ 9 0x430/0x440 bins expose plausible distance but not validated
+    # lateral velocity or object quality yet. Keep them out of lead selection.
+    return CORNER_430_TRACK_ID_START <= t.identifier < CORNER_430_TRACK_ID_END
 
   def _matching_front_track(self, corner: Track, front_tracks: dict[int, Track]) -> Track | None:
     matches = []
